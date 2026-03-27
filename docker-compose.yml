@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount a local absolute path for SQLite DB persistence (optional)
+      # or let it recreate the DB in the container.
+      - pms-data:/app
+    environment:
+      - DATABASE_URL=sqlite:///./pms.db
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"  # Mapping container port 80 to host port 5173 to match the usual Vite dev port
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pms-data:

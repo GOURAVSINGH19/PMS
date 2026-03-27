@@ -1,21 +1,41 @@
 {
+<<<<<<< HEAD
   "name": "vite-project",
+=======
+  "name": "frontend",
+>>>>>>> 1243ac095fee137be106f0a9fa69f381727d12c9
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
+<<<<<<< HEAD
     "build": "tsc -b && vite build",
+=======
+    "build": "vite build",
+>>>>>>> 1243ac095fee137be106f0a9fa69f381727d12c9
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+<<<<<<< HEAD
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@types/node": "^24.12.0",
+=======
+    "axios": "^1.13.6",
+    "lucide-react": "^1.7.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^7.13.2",
+    "recharts": "^3.8.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+>>>>>>> 1243ac095fee137be106f0a9fa69f381727d12c9
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
@@ -23,8 +43,11 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
+<<<<<<< HEAD
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.57.0",
+=======
+>>>>>>> 1243ac095fee137be106f0a9fa69f381727d12c9
     "vite": "^8.0.1"
   }
 }
