@@ -220,12 +220,18 @@ def main():
     print("✓ Employee logged in successfully")
     print("-" * 80)
     
-    # Use existing record for employee 3 (harshit) who has manager_id=2 (deepak)
+    # Clean up existing data first
     headers = {"Authorization": f"Bearer {admin_token}"}
     existing = requests.get(f"{BASE_URL}/probation/employee/3", headers=headers)
     if existing.status_code == 200:
         probation_record_id = existing.json()["id"]
-        print(f"  Using existing probation record {probation_record_id} for employee 3")
+        print(f"  Cleaning up existing probation record {probation_record_id} for employee 3")
+        # Delete existing feedbacks
+        import subprocess
+        subprocess.run([
+            "docker", "exec", "pms-postgres-1", "psql", "-U", "gms_user", "-d", "gms_db", "-c",
+            f"DELETE FROM probation_feedbacks WHERE probation_trigger_id IN (SELECT id FROM probation_triggers WHERE probation_record_id={probation_record_id}); UPDATE probation_records SET probation_status='IN_PROBATION', is_paused=false, pause_start_date=NULL WHERE id={probation_record_id};"
+        ], capture_output=True)
     print("-" * 80)
     
     results = []

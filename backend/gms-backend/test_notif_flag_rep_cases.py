@@ -139,6 +139,19 @@ def test_flag_01():
         if passed and data.get("probation_feedback_flags"):
             # Store first probation flag for next test
             flag_id = data["probation_feedback_flags"][0]["id"]
+        elif passed:
+            # Create a flagged feedback for testing if none exists
+            import subprocess
+            result = subprocess.run([
+                "docker", "exec", "pms-postgres-1", "psql", "-U", "gms_user", "-d", "gms_db", "-c",
+                "INSERT INTO probation_feedbacks (probation_trigger_id, submitted_by_id, feedback_type, form_data, is_flagged, flag_reason, submitted_at) SELECT 2, 2, 'MANAGER', '{\"performance\": 1}', true, 'Low rating', NOW() WHERE NOT EXISTS (SELECT 1 FROM probation_feedbacks WHERE is_flagged=true LIMIT 1) RETURNING id;"
+            ], capture_output=True, text=True)
+            # Re-fetch flags
+            response = requests.get(f"{BASE_URL}/admin/flags", headers=headers)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("probation_feedback_flags"):
+                    flag_id = data["probation_feedback_flags"][0]["id"]
     
     return {
         "test_id": "FLAG-01",

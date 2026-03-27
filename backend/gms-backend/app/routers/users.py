@@ -25,9 +25,20 @@ def get_user(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
+    from app.enums import UserRole
     user = user_service.get_user(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    
+    # Members can only view their own profile
+    if current_user.role == UserRole.MEMBER and current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to view this user")
+    
+    # Managers can view team members
+    if current_user.role == UserRole.MANAGER:
+        if current_user.id != user_id and user.team_id != current_user.team_id:
+            raise HTTPException(status_code=403, detail="Not authorized to view this user")
+    
     return user
 
 @router.get("/", response_model=List[UserSchema])
@@ -38,7 +49,13 @@ def list_users(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
-    from app.permissions import require_manager_or_admin
+    from app.enums import UserRole
+    
+    # Members can only see themselves
+    if current_user.role == UserRole.MEMBER:
+        return [user_service.get_user(db, current_user.id)]
+    
+    # Managers and admins can see more
     require_manager_or_admin(current_user)
     return user_service.get_users(db, skip, limit, team_id=team_id)
 
@@ -49,7 +66,18 @@ def update_user(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
-    require_admin(current_user)
+    from app.enums import UserRole
+    
+    # Users can update their own name
+    if current_user.id == user_id:
+        # Members can only update their name
+        if current_user.role == UserRole.MEMBER:
+            if user_in.role or user_in.manager_id or user_in.team_id or user_in.is_active is not None:
+                raise HTTPException(status_code=403, detail="Members can only update their name")
+    else:
+        # Only admin can update other users
+        require_admin(current_user)
+    
     user = user_service.update_user(db, user_id, user_in)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
