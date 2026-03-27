@@ -27,6 +27,7 @@ class FeedbackService:
             improvements=feedback_data.improvements
         )
         db.add(feedback)
+        db.flush()
         
         self._check_and_update_status(db, goal)
         
@@ -72,10 +73,10 @@ class FeedbackService:
             feedback.is_flagged = True
             feedback.flag_reason = "Incomplete"
         db.add(feedback)
+        db.flush()
         
         if feedback.is_flagged:
             from app.services.notification_service import notification_service
-            db.flush()
             notification_service.notify_flag(db, feedback.id, "goal_feedback")
         
         self._check_and_update_status(db, goal)
@@ -97,6 +98,5 @@ class FeedbackService:
         
         if member_feedback and evaluator_feedback:
             goal.status = GoalStatus.SCORABLE
-            db.commit()
 
 feedback_service = FeedbackService()

@@ -38,8 +38,8 @@ class ProbationService:
         existing = db.query(ProbationRecord).filter(
             ProbationRecord.employee_id == data.employee_id
         ).first()
-        if existing:
-            raise ValueError("Probation record already exists for this employee")
+        if existing and existing.probation_status == ProbationStatus.IN_PROBATION:
+            raise ValueError("Active probation record already exists for this employee")
 
         employee = db.query(User).filter(User.id == data.employee_id).first()
         if not employee:

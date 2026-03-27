@@ -10,6 +10,7 @@ from app.schemas import feedback as feedback_schema
 from app.schemas import score as score_schema
 from app.dependencies import get_current_user
 from app.models.user import User
+from app.enums import GoalStatus
 
 router = APIRouter()
 
@@ -30,7 +31,10 @@ def get_goals(db: Session = Depends(get_db), current_user: User = Depends(get_cu
 
 @router.post("/", response_model=goal_schema.Goal, status_code=status.HTTP_201_CREATED)
 def create_goal(goal_in: goal_schema.GoalCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return goal_service.create_goal(db, goal_in, current_user.id)
+    try:
+        return goal_service.create_goal(db, goal_in, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/{goal_id}", response_model=goal_schema.Goal)
 def get_goal(goal_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

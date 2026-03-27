@@ -25,9 +25,15 @@ def get_team(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    from app.enums import UserRole
     team = team_service.get_team(db, team_id)
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
+    
+    # Only admin or manager of the team can view team details
+    if current_user.role != UserRole.ADMIN and current_user.team_id != team_id:
+        raise HTTPException(status_code=403, detail="Not authorized to view this team")
+    
     return team
 
 @router.get("/", response_model=List[Team])

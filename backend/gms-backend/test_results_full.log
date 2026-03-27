@@ -1,0 +1,66 @@
+Traceback (most recent call last):
+  File "/home/harshitverma/hacathon/PMS/backend/gms-backend/test_suite_complete.py", line 337, in <module>
+    test_goals()
+NameError: name 'test_goals' is not defined
+================================================================================
+PMS BACKEND COMPREHENSIVE TEST SUITE
+Starting tests at: 2026-03-27 23:21:36
+================================================================================
+
+================================================================================
+AUTHENTICATION TESTS (AUTH-01 to AUTH-03)
+================================================================================
+✓ AUTH-01: Login with valid credentials (Admin)
+✓ AUTH-01: Login with valid credentials (Manager)
+✓ AUTH-01: Login with valid credentials (Employee)
+✓ AUTH-02: Login with invalid credentials
+✓ AUTH-03: Login with non-existent user
+
+================================================================================
+TEAM TESTS (TEAM-01 to TEAM-06)
+================================================================================
+✓ TEAM-01: Create team as admin
+✓ TEAM-02: Create team as non-admin (Manager)
+✓ TEAM-03: List teams as admin
+  Found 14 teams
+✓ TEAM-04: List teams as manager
+  Manager sees 14 team(s)
+✓ TEAM-05: Get team details as manager (own team)
+✗ TEAM-06: Get team details - unauthorized (different team)
+
+================================================================================
+USER TESTS (USER-01 to USER-12)
+================================================================================
+✓ USER-01: Create user as admin
+✓ USER-02: Create user as manager (forbidden)
+✓ USER-03: List users as admin
+  Found 6 users
+✓ USER-04: List users as manager (team members only)
+  Manager sees 6 user(s)
+✗ USER-05: List users as member
+✓ USER-06: Get own user profile
+✗ USER-07: Get other user profile as member (forbidden)
+✓ USER-08: Get team member profile as manager
+✗ USER-09: Update own profile as member
+✓ USER-10: Update other user as member (forbidden)
+✓ USER-11: Update manager of user as admin
+✓ USER-12: Delete user as admin
+
+
+Fatal error: name 'test_goals' is not defined
+
+================================================================================
+TEST SUMMARY
+================================================================================
+Total Tests:   23
+✓ Passed:      19
+✗ Failed:      4
+⊘ Skipped:     0
+Success Rate:  82.6%
+================================================================================
+
+FAILED TESTS (4):
+  - TEAM-06: Get team details - unauthorized (different team) | Expected: 403, Got: 200
+  - USER-05: List users as member | Expected: 200, Got: 403
+  - USER-07: Get other user profile as member (forbidden) | Expected: 403, Got: 200
+  - USER-09: Update own profile as member | Expected: 200, Got: 403

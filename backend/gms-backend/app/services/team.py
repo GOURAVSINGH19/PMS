@@ -20,6 +20,20 @@ class TeamService:
         return team_repository.update(db, db_team, **team_data.model_dump(exclude_unset=True))
     
     def delete_team(self, db: Session, team_id: int) -> bool:
+        # Check if team has active users
+        from app.models.user import User
+        active_users = db.query(User).filter(
+            User.team_id == team_id,
+            User.is_active == True
+        ).count()
+        
+        if active_users > 0:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot delete team with {active_users} active user(s). Please reassign or deactivate users first."
+            )
+        
         return team_repository.delete(db, team_id)
 
 team_service = TeamService()

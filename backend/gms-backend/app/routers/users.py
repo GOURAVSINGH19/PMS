@@ -33,13 +33,14 @@ def get_user(
 @router.get("/", response_model=List[UserSchema])
 def list_users(
     skip: int = 0, 
-    limit: int = 100, 
+    limit: int = 100,
+    team_id: int = None,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user)
 ):
     from app.permissions import require_manager_or_admin
     require_manager_or_admin(current_user)
-    return user_service.get_users(db, skip, limit)
+    return user_service.get_users(db, skip, limit, team_id=team_id)
 
 @router.patch("/{user_id}", response_model=UserSchema)
 def update_user(

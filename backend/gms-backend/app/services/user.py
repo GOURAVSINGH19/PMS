@@ -24,8 +24,8 @@ class UserService:
     def get_user(self, db: Session, user_id: int) -> Optional[User]:
         return user_repository.get_by_id(db, user_id)
     
-    def get_users(self, db: Session, skip: int = 0, limit: int = 100) -> List[User]:
-        return user_repository.get_all(db, skip, limit)
+    def get_users(self, db: Session, skip: int = 0, limit: int = 100, team_id: int = None) -> List[User]:
+        return user_repository.get_all(db, skip, limit, team_id=team_id)
     
     def update_user(self, db: Session, user_id: int, user_data: UserUpdate) -> Optional[User]:
         db_user = user_repository.get_by_id(db, user_id)
