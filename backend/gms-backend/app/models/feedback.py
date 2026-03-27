@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, Enum as SQLEnum, DateTime
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, Enum as SQLEnum, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database import Base
@@ -29,5 +29,7 @@ class Feedback(Base):
     evaluator_comment = Column(Text, nullable=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)
+    is_flagged = Column(Boolean, default=False)
+    flag_reason = Column(String, nullable=True)
     
     goal = relationship("Goal", back_populates="feedbacks")

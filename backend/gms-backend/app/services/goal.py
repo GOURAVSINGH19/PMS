@@ -7,7 +7,7 @@ from app.schemas.goal import GoalCreate, GoalUpdate, ProgressUpdate, SubtaskCrea
 from app.models.goal import Goal
 from app.models.subtask import Subtask
 from app.models.progress import Progress
-from app.enums import GoalStatus, UserRole
+from app.enums import GoalStatus, GoalLevel, UserRole
 
 class GoalService:
     def create_goal(self, db: Session, goal_data: GoalCreate, creator_id: int) -> Goal:
@@ -16,6 +16,21 @@ class GoalService:
         
         if not creator or not assignee:
             raise ValueError("Creator or assignee not found")
+        
+        # Validate parent_id hierarchy
+        if goal_data.parent_id:
+            parent = db.query(Goal).filter(Goal.id == goal_data.parent_id).first()
+            if not parent:
+                raise ValueError("Parent goal not found")
+            valid_parents = {
+                GoalLevel.TEAM: [GoalLevel.COMPANY],
+                GoalLevel.INDIVIDUAL: [GoalLevel.TEAM, GoalLevel.COMPANY],
+            }
+            allowed = valid_parents.get(goal_data.level, [])
+            if parent.level not in allowed:
+                raise ValueError(f"{goal_data.level} goal parent must be one of: {[l.value for l in allowed]}")
+        elif goal_data.level == GoalLevel.COMPANY and goal_data.parent_id is not None:
+            raise ValueError("Company goals cannot have a parent")
         
         # Validate total weightage doesn't exceed 100% for user's goals in same period
         existing_goals = db.query(Goal).filter(
@@ -108,7 +123,10 @@ class GoalService:
             raise ValueError("Goal not found or unauthorized")
         if goal.status != GoalStatus.DRAFT:
             raise ValueError("Only draft goals can be submitted")
-        return goal_repository.update(db, goal, status=GoalStatus.PENDING_APPROVAL)
+        result = goal_repository.update(db, goal, status=GoalStatus.PENDING_APPROVAL)
+        from app.services.notification_service import notification_service
+        notification_service.notify_goal_submitted(db, result)
+        return result
     
     def approve_goal(self, db: Session, goal_id: int, evaluator_id: int, approved: bool, comment: str = None) -> Goal:
         goal = goal_repository.get_by_id(db, goal_id)
@@ -124,12 +142,17 @@ class GoalService:
         if evaluator.role != UserRole.ADMIN and assignee.manager_id != evaluator_id:
             raise ValueError("Not authorized to approve this goal")
         
+        from app.services.notification_service import notification_service
         if approved:
-            return goal_repository.update(db, goal, status=GoalStatus.ACTIVE)
+            result = goal_repository.update(db, goal, status=GoalStatus.ACTIVE)
+            notification_service.notify_goal_approved(db, result)
+            return result
         else:
             if not comment:
                 raise ValueError("Rejection comment is mandatory")
-            return goal_repository.update(db, goal, status=GoalStatus.REJECTED)
+            result = goal_repository.update(db, goal, status=GoalStatus.REJECTED)
+            notification_service.notify_goal_rejected(db, result, comment)
+            return result
     
     def update_progress(self, db: Session, goal_id: int, progress_data: ProgressUpdate, user_id: int) -> Progress:
         goal = goal_repository.get_by_id(db, goal_id)

@@ -41,6 +41,7 @@ class GoalBase(BaseModel):
 
 class GoalCreate(GoalBase):
     assignee_id: int
+    parent_id: int | None = None
     
     @property
     def due_date(self) -> date:
@@ -119,6 +120,7 @@ class Goal(BaseModel):
     creator_id: int
     assignee_id: int
     team_id: int | None
+    parent_id: int | None = None
     creator: Optional[UserInfo] = None
     assignee: Optional[UserWithTeam] = None
     subtasks: List[Subtask] = []

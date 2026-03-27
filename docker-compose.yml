@@ -1,18 +1,30 @@
-version: '3.8'
-
 services:
-  backend:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: gms_user
+      POSTGRES_PASSWORD: gms_pass
+      POSTGRES_DB: gms_db
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gms_user -d gms_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  gms-backend:
     build:
-      context: ./backend
+      context: ./backend/gms-backend
       dockerfile: Dockerfile
     ports:
-      - "8001:8000"
-    volumes:
-      # Mount a local absolute path for SQLite DB persistence (optional)
-      # or let it recreate the DB in the container.
-      - pms-data:/app
+      - "8003:8000"
     environment:
-      - DATABASE_URL=sqlite:///./pms.db
+      - DATABASE_URL=postgresql+psycopg://gms_user:gms_pass@postgres:5432/gms_db
+      - SECRET_KEY=gms-secret-key-change-in-production-min-32-characters-long
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
@@ -20,10 +32,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "5173:80"  # Mapping container port 80 to host port 5173 to match the usual Vite dev port
+      - "3001:3000"
     depends_on:
-      - backend
+      - gms-backend
     restart: unless-stopped
 
 volumes:
-  pms-data:
+  postgres-data:

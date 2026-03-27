@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Boolean, Date, ForeignKey, Enum as SQLEnum, DateTime
 from sqlalchemy.orm import relationship
+from datetime import datetime
 from app.database import Base
 from app.enums import UserRole
 
@@ -11,6 +12,11 @@ class User(Base):
     name = Column(String, nullable=False)
     password_hash = Column(String, nullable=False)
     role = Column(SQLEnum(UserRole), nullable=False, default=UserRole.MEMBER)
+    department = Column(String, nullable=True)
+    date_of_joining = Column(Date, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Hierarchy: who is this user's manager/approver
     manager_id = Column(Integer, ForeignKey("users.id"), nullable=True)

@@ -41,3 +41,37 @@ class PerformanceRating(str, Enum):
     BELOW_EXPECTATIONS = "below_expectations"
     MEETS_EXPECTATIONS = "meets_expectations"
     ABOVE_EXPECTATIONS = "above_expectations"
+
+class ProbationStatus(str, Enum):
+    IN_PROBATION = "in_probation"
+    COMPLETED = "completed"
+    REJECTED = "rejected"
+    PAUSED = "paused"
+
+class ProbationTriggerStatus(str, Enum):
+    TRIGGERED = "triggered"
+    SUBMITTED = "submitted"
+    ESCALATED = "escalated"
+
+class ProbationFeedbackType(str, Enum):
+    SELF = "self"
+    MANAGER = "manager"
+
+class ReviewCycleType(str, Enum):
+    QUARTERLY = "quarterly"
+    BI_ANNUAL = "bi_annual"
+
+class ReviewCycleStatus(str, Enum):
+    PENDING = "pending"
+    ACTIVE = "active"
+    CLOSED = "closed"
+
+class ReviewFormType(str, Enum):
+    SELF_ASSESSMENT = "self_assessment"
+    MANAGER_FEEDBACK = "manager_feedback"
+
+class ReviewFormStatus(str, Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    SUBMITTED = "submitted"
+    WAIVED = "waived"

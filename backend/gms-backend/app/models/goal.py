@@ -20,6 +20,7 @@ class Goal(Base):
     category = Column(String, nullable=True)
     completion_percentage = Column(Float, default=0.0)
     
+    parent_id = Column(Integer, ForeignKey("goals.id"), nullable=True)
     creator_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     assignee_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     team_id = Column(Integer, ForeignKey("teams.id"), nullable=True)
@@ -27,6 +28,7 @@ class Goal(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    parent = relationship("Goal", remote_side="Goal.id", backref="child_goals", foreign_keys=[parent_id])
     creator = relationship("User", foreign_keys=[creator_id], back_populates="created_goals")
     assignee = relationship("User", foreign_keys=[assignee_id], back_populates="assigned_goals")
     team = relationship("Team", back_populates="goals")

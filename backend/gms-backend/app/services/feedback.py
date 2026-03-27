@@ -59,7 +59,24 @@ class FeedbackService:
             impact_rating=feedback_data.impact_rating,
             evaluator_comment=feedback_data.evaluator_comment
         )
+        # Auto-flag: any rating <= 2 or blank comment
+        ratings = [
+            feedback_data.quality_rating, feedback_data.timeliness_rating,
+            feedback_data.innovation_rating, feedback_data.collaboration_rating,
+            feedback_data.impact_rating
+        ]
+        if min(ratings) <= 2:
+            feedback.is_flagged = True
+            feedback.flag_reason = "Low rating"
+        elif not feedback_data.evaluator_comment or not feedback_data.evaluator_comment.strip():
+            feedback.is_flagged = True
+            feedback.flag_reason = "Incomplete"
         db.add(feedback)
+        
+        if feedback.is_flagged:
+            from app.services.notification_service import notification_service
+            db.flush()
+            notification_service.notify_flag(db, feedback.id, "goal_feedback")
         
         self._check_and_update_status(db, goal)
         
