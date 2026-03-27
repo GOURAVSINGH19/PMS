@@ -1,91 +1,81 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { LogIn, Key, User } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { Target } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { authService } from '../services/auth';
+import { useAuthStore } from '../store/auth';
 
 export default function Login() {
-  const { login } = useAuth();
-  const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const { register, handleSubmit, formState: { errors } } = useForm();
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const setAuth = useAuthStore((state) => state.setAuth);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
+  const onSubmit = async (data) => {
     setLoading(true);
     try {
-      const role = await login(email, password);
-      navigate(role === 'admin' ? '/admin' : '/dashboard');
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Login failed. Check credentials.');
+      const response = await authService.login(data.email, data.password);
+      const user = {
+        id: response.user_id,
+        email: response.email,
+        name: response.name,
+        role: response.role,
+        team_id: response.team_id,
+        manager_id: response.manager_id
+      };
+      setAuth(response.access_token, user);
+      toast.success('Login successful!');
+      navigate('/');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Login failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const autofill = (role) => {
-    if (role === 'admin') { setEmail('admin@pms.io'); setPassword('admin123'); }
-    if (role === 'manager') { setEmail('manager@pms.io'); setPassword('manager123'); }
-    if (role === 'employee') { setEmail('employee@pms.io'); setPassword('emp123'); }
-  };
-
   return (
-    <div className="login-page">
-      <div className="login-bg-orb orb1"></div>
-      <div className="login-bg-orb orb2"></div>
-      
-      <div className="login-card">
-        <div className="login-logo">
-          <div className="logo-circle">✨</div>
-          <h1>PMS Pro</h1>
-          <p>Performance & Goal Management</p>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100">
+      <div className="max-w-md w-full mx-4">
+        <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            <Target className="w-16 h-16 text-primary-600" />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900">Goal Management System</h1>
+          <p className="text-gray-600 mt-2">Sign in to manage your goals</p>
         </div>
 
-        {error && <div className="alert alert-error">{error}</div>}
-
-        <div className="quick-login-row">
-          <button type="button" className="quick-login-btn admin" onClick={() => autofill('admin')}>Admin</button>
-          <button type="button" className="quick-login-btn manager" onClick={() => autofill('manager')}>Manager</button>
-          <button type="button" className="quick-login-btn employee" onClick={() => autofill('employee')}>Employee</button>
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label className="form-label">Email Address</label>
-            <div style={{ position: 'relative' }}>
-              <User size={16} style={{ position: 'absolute', left: 14, top: 12, color: 'var(--text-secondary)'}} />
+        <div className="card">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
               <input
                 type="email"
-                className="form-input"
-                style={{ paddingLeft: 40 }}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
+                className="input"
+                {...register('email', { required: 'Email is required' })}
               />
+              {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>}
             </div>
-          </div>
-          
-          <div className="form-group">
-            <label className="form-label">Password</label>
-            <div style={{ position: 'relative' }}>
-              <Key size={16} style={{ position: 'absolute', left: 14, top: 12, color: 'var(--text-secondary)'}} />
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
               <input
                 type="password"
-                className="form-input"
-                style={{ paddingLeft: 40 }}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
+                className="input"
+                {...register('password', { required: 'Password is required' })}
               />
+              {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password.message}</p>}
             </div>
-          </div>
 
-          <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 10 }} disabled={loading}>
-            {loading ? <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} /> : <><LogIn size={16} /> Sign In</>}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full btn btn-primary"
+            >
+              {loading ? 'Signing in...' : 'Sign In'}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

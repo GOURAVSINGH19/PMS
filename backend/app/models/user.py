@@ -28,4 +28,4 @@ class User(Base):
     goals_owned = relationship("Goal", foreign_keys="Goal.owner_id", back_populates="owner")
     goals_created = relationship("Goal", foreign_keys="Goal.creator_id", back_populates="creator")
     notifications = relationship("Notification", back_populates="user")
-    probation_record = relationship("ProbationRecord", back_populates="employee", uselist=False)
+    probation_record = relationship("ProbationRecord", foreign_keys="ProbationRecord.employee_id", primaryjoin="User.id == ProbationRecord.employee_id", back_populates="employee", uselist=False)

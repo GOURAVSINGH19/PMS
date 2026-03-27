@@ -1,0 +1,25 @@
+import { format, formatDistanceToNow } from 'date-fns';
+
+export const formatDate = (date) => {
+  if (!date) return '-';
+  return format(new Date(date), 'MMM dd, yyyy');
+};
+
+export const formatDateTime = (date) => {
+  if (!date) return '-';
+  return format(new Date(date), 'MMM dd, yyyy HH:mm');
+};
+
+export const formatRelativeTime = (date) => {
+  if (!date) return '-';
+  return formatDistanceToNow(new Date(date), { addSuffix: true });
+};
+
+export const capitalize = (str) => {
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+};
+
+export const formatEnumValue = (value) => {
+  if (!value) return '-';
+  return value.split('_').map(capitalize).join(' ');
+};

@@ -1,37 +1,34 @@
-import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
-import AppLayout from './layouts/AppLayout';
-
-// Pages
+import { Toaster } from 'react-hot-toast';
+import { useAuthStore } from './store/auth';
+import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
-import AdminDashboard from './pages/Dashboard/AdminDashboard';
-import EmployeeDashboard from './pages/Dashboard/EmployeeDashboard';
-import GoalListPage from './pages/Goals/GoalListPage';
-import ProbationPage from './pages/Probation/ProbationPage';
-import FeedbackPage from './pages/Feedback/FeedbackPage';
+import Dashboard from './pages/Dashboard';
+import Goals from './pages/Goals';
+import CreateGoal from './pages/CreateGoal';
+import GoalDetail from './pages/GoalDetail';
+import Users from './pages/Users';
+import Teams from './pages/Teams';
 
 function App() {
+  const token = useAuthStore((state) => state.token);
+
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          
-          {/* Protected Routes inside AppLayout */}
-          <Route path="/" element={<AppLayout />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<EmployeeDashboard />} />
-            <Route path="admin" element={<AdminDashboard />} />
-            <Route path="goals" element={<GoalListPage />} />
-            <Route path="probation" element={<ProbationPage />} />
-            <Route path="feedback" element={<FeedbackPage />} />
-            {/* Fallback */}
-            <Route path="*" element={<div className="empty-state">Page not found</div>} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+    <BrowserRouter>
+      <Toaster position="top-right" />
+      <Routes>
+        <Route path="/login" element={token ? <Navigate to="/" replace /> : <Login />} />
+        
+        <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/goals/new" element={<ProtectedRoute><CreateGoal /></ProtectedRoute>} />
+        <Route path="/goals/:id" element={<ProtectedRoute><GoalDetail /></ProtectedRoute>} />
+        
+        <Route path="/users" element={<ProtectedRoute requireAdmin><Users /></ProtectedRoute>} />
+        <Route path="/teams" element={<ProtectedRoute requireAdmin><Teams /></ProtectedRoute>} />
+        
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 

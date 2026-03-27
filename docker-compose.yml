@@ -6,7 +6,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       # Mount a local absolute path for SQLite DB persistence (optional)
       # or let it recreate the DB in the container.

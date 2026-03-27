@@ -14,11 +14,8 @@ class ProbationRecord(Base):
     effective_doj = Column(Date, nullable=True)  # Adjusted DOJ after backdating
     leave_days_accumulated = Column(Integer, default=0)
     current_manager_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    employee = relationship("User", foreign_keys=[employee_id], back_populates="probation_record")
-    current_manager = relationship("User", foreign_keys=[current_manager_id])
+    employee = relationship("User", foreign_keys="[ProbationRecord.employee_id]", primaryjoin="ProbationRecord.employee_id == User.id", back_populates="probation_record")
+    current_manager = relationship("User", foreign_keys="[ProbationRecord.current_manager_id]", primaryjoin="ProbationRecord.current_manager_id == User.id")
     triggers = relationship("ProbationTrigger", back_populates="probation_record")
 
 
