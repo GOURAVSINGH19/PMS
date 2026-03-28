@@ -111,6 +111,44 @@ class ProbationService:
         db.commit()
         db.refresh(record)
         return record
+    
+    def cancel_on_termination(self, db: Session, employee_id: int) -> None:
+        """Auto-cancel all probation triggers when employee is deactivated"""
+        record = self.get_by_employee(db, employee_id)
+        if not record or record.probation_status not in [ProbationStatus.IN_PROBATION, ProbationStatus.PAUSED]:
+            return
+        
+        # Cancel all pending triggers
+        for trigger in record.triggers:
+            if trigger.status == ProbationTriggerStatus.TRIGGERED:
+                trigger.status = ProbationTriggerStatus.SUBMITTED  # Mark as handled
+        
+        record.probation_status = ProbationStatus.REJECTED  # Or create TERMINATED status
+        db.commit()
+        print(f"[PROBATION] Auto-cancelled triggers for terminated employee {employee_id}")
+    
+    def reassign_on_manager_change(self, db: Session, employee_id: int, old_manager_id: int, new_manager_id: int) -> None:
+        """Reassign pending probation triggers when manager changes"""
+        record = self.get_by_employee(db, employee_id)
+        if not record:
+            return
+        
+        # Find all TRIGGERED (pending) triggers
+        pending_triggers = [t for t in record.triggers if t.status == ProbationTriggerStatus.TRIGGERED]
+        
+        if pending_triggers:
+            from app.services.notification_service import notification_service
+            new_manager = db.query(User).filter(User.id == new_manager_id).first()
+            
+            for trigger in pending_triggers:
+                # Notify new manager
+                if new_manager:
+                    title = f"Probation Day {trigger.trigger_day} form assigned to you"
+                    msg = f"You have been assigned as the new manager for an employee with a pending Day {trigger.trigger_day} probation form."
+                    notification_service.create(db, new_manager.id, "probation_reassigned", title, msg, "probation_trigger", trigger.id)
+                    notification_service._send_email(new_manager.email, title, msg)
+            
+            print(f"[PROBATION] Reassigned {len(pending_triggers)} triggers from manager {old_manager_id} to {new_manager_id}")
 
     def reject(self, db: Session, record_id: int) -> ProbationRecord:
         record = self.get_record(db, record_id)
@@ -224,6 +262,30 @@ class ProbationService:
             working_days = self.get_working_days_elapsed(record)
             employee = db.query(User).filter(User.id == record.employee_id).first()
             if not employee:
+                continue
+            
+            # CRITICAL FIX: Block trigger if no manager assigned
+            if not employee.manager_id:
+                # Alert admin only once per record
+                existing_alert = db.query(ProbationTrigger).filter(
+                    ProbationTrigger.probation_record_id == record.id,
+                    ProbationTrigger.status == ProbationTriggerStatus.BLOCKED
+                ).first()
+                if not existing_alert:
+                    # Create blocked trigger as marker
+                    blocked = ProbationTrigger(
+                        probation_record_id=record.id,
+                        trigger_day=30,  # placeholder
+                        trigger_date=date.today(),
+                        status=ProbationTriggerStatus.BLOCKED
+                    )
+                    db.add(blocked)
+                    db.commit()
+                    # Alert admin
+                    admins = db.query(User).filter(User.role == UserRole.ADMIN).all()
+                    for admin in admins:
+                        notification_service.notify_no_manager_assigned(db, employee, admin)
+                    print(f"[PROBATION] BLOCKED: No manager for employee {employee.email}")
                 continue
 
             for trigger_day in TRIGGER_DAYS:

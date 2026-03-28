@@ -14,6 +14,7 @@ from app.routers import reviews as reviews_router
 from app.routers import notifications as notifications_router
 from app.routers import dashboard as dashboard_router
 from app.routers import admin as admin_router
+from app.routers import admin_flags as admin_flags_router
 
 app = FastAPI(title="PMS — Performance & Goal Management Platform", version="2.0.0")
 
@@ -39,6 +40,7 @@ app.include_router(reviews_router.router,       prefix="/api/v1",               
 app.include_router(notifications_router.router, prefix="/api/v1/notifications",  tags=["notifications"])
 app.include_router(dashboard_router.router,     prefix="/api/v1/dashboard",      tags=["dashboard"])
 app.include_router(admin_router.router,         prefix="/api/v1/admin",          tags=["admin"])
+app.include_router(admin_flags_router.router,   prefix="/api/v1/admin",          tags=["admin-flags"])
 
 
 @app.on_event("startup")

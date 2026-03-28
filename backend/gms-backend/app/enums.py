@@ -52,6 +52,7 @@ class ProbationTriggerStatus(str, Enum):
     TRIGGERED = "triggered"
     SUBMITTED = "submitted"
     ESCALATED = "escalated"
+    BLOCKED = "blocked"  # No manager assigned
 
 class ProbationFeedbackType(str, Enum):
     SELF = "self"

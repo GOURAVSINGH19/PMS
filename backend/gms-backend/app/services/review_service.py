@@ -3,7 +3,7 @@ from datetime import date, datetime, timedelta
 from typing import List, Optional
 from app.models.review import ReviewCycle, ReviewForm, ReviewPerformanceHistory
 from app.models.user import User
-from app.enums import ReviewCycleStatus, ReviewFormType, ReviewFormStatus, UserRole
+from app.enums import ReviewCycleStatus, ReviewFormType, ReviewFormStatus, UserRole, ReviewCycleType
 from app.schemas.review import ReviewCycleCreate, ReviewFormSubmit
 
 
@@ -47,8 +47,32 @@ class ReviewService:
             User.date_of_joining != None,
             User.date_of_joining <= cutoff
         ).all()
+        
+        # DUAL-TRACK DEDUPLICATION: Check for overlapping cycles
+        overlapping_cycles = db.query(ReviewCycle).filter(
+            ReviewCycle.id != cycle_id,
+            ReviewCycle.status == ReviewCycleStatus.ACTIVE,
+            ReviewCycle.start_date <= cycle.end_date,
+            ReviewCycle.end_date >= cycle.start_date
+        ).all()
+        
+        # If quarterly overlaps with bi-annual, skip bi-annual for those employees
+        skip_employees = set()
+        if cycle.cycle_type == ReviewCycleType.BI_ANNUAL:
+            for other in overlapping_cycles:
+                if other.cycle_type == ReviewCycleType.QUARTERLY:
+                    # Get employees already in quarterly cycle
+                    quarterly_forms = db.query(ReviewForm).filter(
+                        ReviewForm.review_cycle_id == other.id
+                    ).all()
+                    skip_employees.update(f.employee_id for f in quarterly_forms)
+                    print(f"[REVIEW] Skipping {len(skip_employees)} employees already in quarterly cycle")
 
+        created_count = 0
         for employee in eligible_employees:
+            if employee.id in skip_employees:
+                continue
+            
             # Self-assessment form
             db.add(ReviewForm(
                 review_cycle_id=cycle_id,
@@ -64,14 +88,15 @@ class ReviewService:
                     manager_id=employee.manager_id,
                     form_type=ReviewFormType.MANAGER_FEEDBACK,
                 ))
+            created_count += 1
 
         cycle.status = ReviewCycleStatus.ACTIVE
         db.commit()
         db.refresh(cycle)
 
         # Notify
-        notification_service.notify_review_cycle_started(db, cycle, eligible_employees)
-        print(f"[REVIEW] Cycle '{cycle.cycle_name}' triggered for {len(eligible_employees)} employees")
+        notification_service.notify_review_cycle_started(db, cycle, [e for e in eligible_employees if e.id not in skip_employees])
+        print(f"[REVIEW] Cycle '{cycle.cycle_name}' triggered for {created_count} employees ({len(skip_employees)} skipped due to dual-track)")
         return cycle
 
     def close_cycle(self, db: Session, cycle_id: int, admin_id: int) -> ReviewCycle:
@@ -110,6 +135,7 @@ class ReviewService:
 
     def submit_form(self, db: Session, form_id: int, user_id: int, data: ReviewFormSubmit) -> ReviewForm:
         from app.services.notification_service import notification_service
+        from app.services.red_flag_engine import red_flag_engine
 
         form = self.get_form(db, form_id)
         if not form:
@@ -134,7 +160,18 @@ class ReviewService:
         form.final_rating = data.final_rating
         form.status = ReviewFormStatus.SUBMITTED
         form.submitted_at = datetime.utcnow()
+        
+        # RED FLAG ENGINE: Scan for issues
+        flag_result = red_flag_engine.scan_feedback(db, form)
+        form.is_flagged = flag_result["is_flagged"]
+        form.flag_reason = flag_result["flag_reason"]
+        
         db.commit()
+        
+        # Notify admin if red flag detected
+        if form.is_flagged >= 2:
+            notification_service.notify_flag(db, form)
+            print(f"[RED FLAG] Detected in form {form_id}: {form.flag_reason}")
 
         # Check cross-share: if both forms for this employee in this cycle are submitted
         self._check_cross_share(db, form.review_cycle_id, form.employee_id, notification_service)
@@ -143,6 +180,7 @@ class ReviewService:
         return form
 
     def _check_cross_share(self, db, cycle_id, employee_id, notification_service):
+        """Blind Cross-Share: Only reveal both forms after BOTH are submitted"""
         self_form = db.query(ReviewForm).filter(
             ReviewForm.review_cycle_id == cycle_id,
             ReviewForm.employee_id == employee_id,
@@ -158,6 +196,11 @@ class ReviewService:
         ).first()
 
         if self_form and mgr_form:
+            # CROSS-SHARE: Mark both forms as revealed
+            cross_share_time = datetime.utcnow()
+            self_form.cross_shared_at = cross_share_time
+            mgr_form.cross_shared_at = cross_share_time
+            
             # Create performance history record
             avg_rating = mgr_form.final_rating
             history = ReviewPerformanceHistory(
@@ -169,6 +212,16 @@ class ReviewService:
             )
             db.add(history)
             db.commit()
+            
+            # Notify both parties that feedback is now available
+            employee = db.query(User).filter(User.id == employee_id).first()
+            manager = db.query(User).filter(User.id == mgr_form.manager_id).first()
+            
+            if employee:
+                notification_service.notify_cross_share_complete(db, employee, "employee")
+            if manager:
+                notification_service.notify_cross_share_complete(db, manager, "manager")
+            
             print(f"[REVIEW] Cross-share complete for employee {employee_id} in cycle {cycle_id}")
 
     def get_compliance(self, db: Session, cycle_id: int) -> dict:

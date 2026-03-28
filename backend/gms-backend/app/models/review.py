@@ -35,11 +35,17 @@ class ReviewForm(Base):
     form_data = Column(JSON, nullable=True)
     final_rating = Column(Integer, nullable=True)   # 1–5
     submitted_at = Column(DateTime, nullable=True)
+    cross_shared_at = Column(DateTime, nullable=True)  # When both forms revealed
+    is_flagged = Column(Integer, default=0)  # 0=no flag, 1=soft flag, 2=red flag
+    flag_reason = Column(Text, nullable=True)  # Why flagged
+    flag_reviewed_at = Column(DateTime, nullable=True)
+    flag_reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     cycle = relationship("ReviewCycle", back_populates="forms")
     employee = relationship("User", foreign_keys=[employee_id])
     manager = relationship("User", foreign_keys=[manager_id])
+    flag_reviewer = relationship("User", foreign_keys=[flag_reviewed_by])
 
 
 class ReviewPerformanceHistory(Base):
