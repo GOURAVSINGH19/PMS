@@ -1,12 +1,31 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
+import { 
+  Target, Calendar, Award, UserPlus, 
+  ChevronRight, ArrowLeft, Zap, Info, ShieldCheck
+} from 'lucide-react';
 import Layout from '../components/Layout';
-import { goalService } from '../services/goal';
-import { userService } from '../services/user';
+import { goalService, userService } from '../api';
 import { GoalLevel, GoalTag, GoalPriority, PRIORITY_WEIGHTAGE } from '../constants/enums';
 import { useAuthStore } from '../store/auth';
 import toast from 'react-hot-toast';
+
+const COLORS = {
+  bg: "#F5F4F0",
+  surface: "#FFFFFF",
+  card: "#FFFFFF",
+  border: "#E4E2DC",
+  accent: "#2563EB",
+  accentDim: "#1D4ED8",
+  emerald: "#059669",
+  amber: "#D97706",
+  rose: "#DC2626",
+  violet: "#7C3AED",
+  text: "#111111",
+  muted: "#6B7280",
+  subtle: "#9CA3AF",
+};
 
 export default function CreateGoal() {
   const { register, handleSubmit, watch, formState: { errors } } = useForm();
@@ -18,37 +37,31 @@ export default function CreateGoal() {
 
   const watchTag = watch('tag');
   const watchPriority = watch('priority');
-  const watchAssignee = watch('assignee_id');
+  const watchOwner = watch('owner_id');
 
   useEffect(() => {
     loadUsers();
   }, []);
 
   useEffect(() => {
-    if (watchTag && (currentUser.role === 'member' || watchAssignee)) {
+    if (watchTag && (currentUser.role === 'employee' || watchOwner)) {
       checkWeightage();
     }
-  }, [watchTag, watchAssignee, watchPriority]);
+  }, [watchTag, watchOwner, watchPriority]);
 
   const loadUsers = async () => {
-    // Members don't need to load users - they only create for themselves
-    if (currentUser.role === 'member') {
+    if (currentUser.role === 'employee') {
       setUsers([currentUser]);
       return;
     }
-    
     try {
       const response = await userService.getAll();
       let filteredUsers = response.data;
-      
-      // Filter users based on role
       if (currentUser.role === 'manager') {
-        // Manager can only assign to team members or self
-        filteredUsers = filteredUsers.filter(u => 
+        filteredUsers = filteredUsers.filter(u =>
           u.team_id === currentUser.team_id || u.id === currentUser.id
         );
       }
-      
       setUsers(filteredUsers);
     } catch (error) {
       toast.error('Failed to load users');
@@ -57,8 +70,8 @@ export default function CreateGoal() {
 
   const checkWeightage = async () => {
     try {
-      const assigneeId = currentUser.role === 'member' ? currentUser.id : watchAssignee;
-      const response = await goalService.checkWeightage(assigneeId, watchTag);
+      const ownerId = currentUser.role === 'employee' ? currentUser.id : watchOwner;
+      const response = await goalService.checkWeightage(ownerId, watchTag);
       setRemainingWeightage(response.data.remaining_weightage);
     } catch (error) {
       console.error('Failed to check weightage');
@@ -66,24 +79,22 @@ export default function CreateGoal() {
   };
 
   const onSubmit = async (data) => {
-    // Auto-assign to self for members
-    if (currentUser.role === 'member') {
-      data.assignee_id = currentUser.id;
+    if (currentUser.role === 'employee') {
+      data.owner_id = currentUser.id;
     }
-    
     const goalWeightage = PRIORITY_WEIGHTAGE[data.priority];
     if (goalWeightage > remainingWeightage) {
-      toast.error(`Not enough weightage. Only ${remainingWeightage}% remaining for this period.`);
+      toast.error(`Weightage guardrail triggered. Only ${remainingWeightage}% remaining.`);
       return;
     }
 
     setLoading(true);
     try {
       await goalService.create(data);
-      toast.success('Goal created successfully!');
-      navigate('/');
+      toast.success('Goal created successfully');
+      navigate('/goals');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to create goal');
+      toast.error('Failed to create goal');
     } finally {
       setLoading(false);
     }
@@ -93,119 +104,139 @@ export default function CreateGoal() {
 
   return (
     <Layout>
-      <div className="max-w-3xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">Create New Goal</h1>
+      <div style={{ display: "flex", flexDirection: "column", gap: 32, maxWidth: 800, margin: "0 auto" }}>
+        
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+           <button onClick={() => navigate(-1)} style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 8, borderRadius: 10, cursor: "pointer", color: COLORS.muted }}>
+              <ArrowLeft size={16} />
+           </button>
+           <div>
+              <h1 style={{ fontSize: 24, fontWeight: 800, color: COLORS.text, letterSpacing: "-0.03em" }}>Create New Goal</h1>
+              <p style={{ fontSize: 14, color: COLORS.muted, marginTop: 4 }}>Define a new goal with priority and weightage allocation</p>
+           </div>
+        </div>
 
-        <div className="card">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-              <input
-                type="text"
-                className="input"
-                {...register('title', { required: 'Title is required' })}
-              />
-              {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title.message}</p>}
+        <div style={{
+          background: COLORS.card, border: `1.5px solid ${COLORS.border}`,
+          borderRadius: 24, padding: 32, display: "flex", flexDirection: "column", gap: 32,
+          boxShadow: "0 1px 4px rgba(0,0,0,0.03)",
+        }}>
+          <form onSubmit={handleSubmit(onSubmit)} style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+            {/* Title Section */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>Goal Title</label>
+              <input type="text" placeholder="e.g. Increase quarterly revenue by 15%" {...register('title', { required: true })}
+                style={{ padding: "12px 16px", border: `1.5px solid ${COLORS.border}`, borderRadius: 12, fontSize: 14, outline: "none", background: COLORS.bg }} />
+              {errors.title && <span style={{ fontSize: 11, color: COLORS.rose, fontWeight: 600 }}>Goal title is required</span>}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-              <textarea
-                rows="4"
-                className="input"
-                {...register('description')}
-              />
+            {/* Description */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>Description</label>
+              <textarea rows="4" placeholder="Describe the goal and expected outcome..." {...register('description')}
+                style={{ padding: "12px 16px", border: `1.5px solid ${COLORS.border}`, borderRadius: 12, fontSize: 14, outline: "none", background: COLORS.bg, resize: "none" }} />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Level</label>
-                <select className="input" {...register('level', { required: 'Level is required' })}>
-                  <option value="">Select level</option>
-                  {Object.values(GoalLevel).map((level) => (
-                    <option key={level} value={level} className="capitalize">{level}</option>
-                  ))}
-                </select>
-                {errors.level && <p className="text-red-500 text-sm mt-1">{errors.level.message}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tag</label>
-                <select className="input" {...register('tag', { required: 'Tag is required' })}>
-                  <option value="">Select tag</option>
-                  {Object.values(GoalTag).map((tag) => (
-                    <option key={tag} value={tag} className="capitalize">{tag}</option>
-                  ))}
-                </select>
-                {errors.tag && <p className="text-red-500 text-sm mt-1">{errors.tag.message}</p>}
-              </div>
+            {/* Meta Grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                 <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>Goal Level</label>
+                 <select {...register('level', { required: true })} style={{ padding: "12px 16px", border: `1.5px solid ${COLORS.border}`, borderRadius: 12, fontSize: 14, outline: "none", background: "#fff" }}>
+                    <option value="">Select Level</option>
+                    {Object.values(GoalLevel).map((level) => <option key={level} value={level}>{level.toUpperCase()}</option>)}
+                 </select>
+               </div>
+               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                 <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>Category Tag</label>
+                 <select {...register('tag', { required: true })} style={{ padding: "12px 16px", border: `1.5px solid ${COLORS.border}`, borderRadius: 12, fontSize: 14, outline: "none", background: "#fff" }}>
+                    <option value="">Select Tag</option>
+                    {Object.values(GoalTag).map((tag) => <option key={tag} value={tag}>{tag.toUpperCase()}</option>)}
+                 </select>
+               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-                <select className="input" {...register('priority', { required: 'Priority is required' })}>
-                  <option value="">Select priority</option>
-                  {Object.entries(PRIORITY_WEIGHTAGE).map(([priority, weightage]) => (
-                    <option key={priority} value={priority} className="capitalize">
-                      {priority} ({weightage}%)
-                    </option>
-                  ))}
-                </select>
-                {errors.priority && <p className="text-red-500 text-sm mt-1">{errors.priority.message}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                <input
-                  type="date"
-                  className="input"
-                  {...register('start_date', { required: 'Start date is required' })}
-                />
-                {errors.start_date && <p className="text-red-500 text-sm mt-1">{errors.start_date.message}</p>}
-              </div>
+            {/* Priority & Planning */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                 <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>Priority</label>
+                 <select {...register('priority', { required: true })} style={{ padding: "12px 16px", border: `1.5px solid ${COLORS.border}`, borderRadius: 12, fontSize: 14, outline: "none", background: "#fff" }}>
+                    <option value="">Select Priority</option>
+                    {Object.entries(PRIORITY_WEIGHTAGE).map(([p, w]) => <option key={p} value={p}>{p.toUpperCase()} ({w}%)</option>)}
+                 </select>
+               </div>
+               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                 <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>Start Date</label>
+                 <input type="date" {...register('start_date', { required: true })}
+                   style={{ padding: "12px 16px", border: `1.5px solid ${COLORS.border}`, borderRadius: 12, fontSize: 14, outline: "none", background: "#fff" }} />
+               </div>
             </div>
 
-            {currentUser.role !== 'member' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Assign To</label>
-                <select className="input" {...register('assignee_id', { required: 'Assignee is required' })}>
-                  <option value="">Select user</option>
-                  {users.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.name} ({user.email})
-                    </option>
-                  ))}
-                </select>
-                {errors.assignee_id && <p className="text-red-500 text-sm mt-1">{errors.assignee_id.message}</p>}
+            {/* Guardrail Status */}
+            {watchTag && (currentUser.role !== 'employee' ? watchOwner : true) && (
+              <div style={{
+                background: remainingWeightage >= selectedWeightage ? `${COLORS.emerald}08` : `${COLORS.rose}08`,
+                border: `1.5px solid ${remainingWeightage >= selectedWeightage ? COLORS.emerald : COLORS.rose}25`,
+                borderRadius: 16, padding: "20px", display: "flex", flexDirection: "column", gap: 12,
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                   <ShieldCheck size={18} color={remainingWeightage >= selectedWeightage ? COLORS.emerald : COLORS.rose} />
+                   <span style={{ fontSize: 14, fontWeight: 800, color: remainingWeightage >= selectedWeightage ? COLORS.emerald : COLORS.rose }}>Weightage Check</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                   <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.muted }}>Current Weightage Used</span>
+                   <span style={{ fontSize: 14, fontWeight: 800 }}>{100 - remainingWeightage}%</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                   <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.muted }}>This Goal's Weightage</span>
+                   <span style={{ fontSize: 14, fontWeight: 800, color: COLORS.accent }}>+{selectedWeightage}%</span>
+                </div>
+                <div style={{ width: "100%", height: 6, background: COLORS.bg, borderRadius: 10, overflow: "hidden", marginTop: 4 }}>
+                   <div style={{ width: `${100 - remainingWeightage + selectedWeightage}%`, height: "100%", background: remainingWeightage >= selectedWeightage ? COLORS.emerald : COLORS.rose }} />
+                </div>
+                {remainingWeightage < selectedWeightage && (
+                  <p style={{ fontSize: 11, color: COLORS.rose, fontWeight: 600, marginTop: 4 }}>⚠ Warning: Selecting this priority exceeds the 100% threshold for {watchTag} class.</p>
+                )}
               </div>
             )}
 
-            {watchTag && (currentUser.role !== 'member' ? watchAssignee : true) && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-gray-700">Weightage for this goal:</span>
-                  <span className="text-lg font-bold text-primary-600">{selectedWeightage}%</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-gray-700">Remaining weightage:</span>
-                  <span className={`text-lg font-bold ${remainingWeightage >= selectedWeightage ? 'text-green-600' : 'text-red-600'}`}>
-                    {remainingWeightage}%
-                  </span>
-                </div>
+            {/* Assignee */}
+            {currentUser.role !== 'employee' && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>Assign To</label>
+                <select {...register('owner_id', { required: true })} style={{ padding: "12px 16px", border: `1.5px solid ${COLORS.border}`, borderRadius: 12, fontSize: 14, outline: "none", background: "#fff" }}>
+                  <option value="">Select User</option>
+                   {users.map((user) => <option key={user.id} value={user.id}>{user.name} ({user.role})</option>)}
+                </select>
               </div>
             )}
 
-            <div className="flex space-x-4">
-              <button type="submit" disabled={loading} className="btn btn-primary">
-                {loading ? 'Creating...' : 'Create Goal'}
-              </button>
-              <button type="button" onClick={() => navigate('/goals')} className="btn btn-secondary">
-                Cancel
-              </button>
+            {/* Footer Actions */}
+            <div style={{ display: "flex", gap: 16, paddingTop: 12, borderTop: `1px solid ${COLORS.border}` }}>
+               <button type="button" onClick={() => navigate(-1)}
+                 style={{ flex: 1, padding: "14px", borderRadius: 12, border: `1.5px solid ${COLORS.border}`, background: "#fff", color: COLORS.muted, fontWeight: 700, cursor: "pointer" }}>
+                 Cancel
+               </button>
+               <button type="submit" disabled={loading || (watchTag && remainingWeightage < selectedWeightage)}
+                 style={{ flex: 2, padding: "14px", borderRadius: 12, border: "none", background: COLORS.accent, color: "#fff", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, opacity: (loading || (watchTag && remainingWeightage < selectedWeightage)) ? 0.6 : 1 }}>
+                 {loading ? "Creating..." : (remainingWeightage < selectedWeightage ? "Weightage Exceeded" : "Create Goal")}
+                 {!loading && remainingWeightage >= selectedWeightage && <Zap size={16} />}
+               </button>
             </div>
           </form>
         </div>
+
+        {/* Info Card */}
+        <div style={{
+          background: `${COLORS.violet}08`, border: `1.5px dashed ${COLORS.violet}40`,
+          borderRadius: 20, padding: "20px 24px", display: "flex", gap: 16,
+        }}>
+           <Info size={20} color={COLORS.violet} style={{ flexShrink: 0 }} />
+           <p style={{ fontSize: 12, color: COLORS.violet, fontWeight: 500, lineHeight: 1.6 }}>
+             Goals are sent for approval once created. Make sure all details are accurate before submitting.
+           </p>
+        </div>
+
       </div>
     </Layout>
   );

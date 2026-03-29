@@ -1,12 +1,34 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, Plus, Trash2, Edit } from 'lucide-react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { 
+  CheckCircle, XCircle, Plus, Trash2, Edit, 
+  Target, Clock, AlertTriangle, Shield, 
+  ArrowLeft, ChevronRight, Zap, MessageSquare, 
+  Activity, Award, FileText,
+  Calendar
+} from 'lucide-react';
 import Layout from '../components/Layout';
-import { goalService } from '../services/goal';
-import { GoalStatus, STATUS_COLORS, PRIORITY_COLORS, FeedbackType, PerformanceRating } from '../constants/enums';
+import { goalService } from '../api';
+import { GoalStatus, FeedbackType, PerformanceRating } from '../constants/enums';
 import { formatDate, formatEnumValue } from '../utils/format';
 import { useAuthStore } from '../store/auth';
 import toast from 'react-hot-toast';
+
+const COLORS = {
+  bg: "#F5F4F0",
+  surface: "#FFFFFF",
+  card: "#FFFFFF",
+  border: "#E4E2DC",
+  accent: "#2563EB",
+  accentDim: "#1D4ED8",
+  emerald: "#059669",
+  amber: "#D97706",
+  rose: "#DC2626",
+  violet: "#7C3AED",
+  text: "#111111",
+  muted: "#6B7280",
+  subtle: "#9CA3AF",
+};
 
 export default function GoalDetail() {
   const { id } = useParams();
@@ -14,8 +36,7 @@ export default function GoalDetail() {
   const [loading, setLoading] = useState(true);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [showSubtaskModal, setShowSubtaskModal] = useState(false);
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [showScoreModal, setShowScoreModal] = useState(false);
+  const [showInterventionModal, setShowInterventionModal] = useState(false);
   const navigate = useNavigate();
   const currentUser = useAuthStore((state) => state.user);
 
@@ -28,7 +49,7 @@ export default function GoalDetail() {
       const response = await goalService.getById(id);
       setGoal(response.data);
     } catch (error) {
-      toast.error('Failed to load goal');
+      toast.error('Strategic objective not found');
       navigate('/goals');
     } finally {
       setLoading(false);
@@ -38,167 +59,232 @@ export default function GoalDetail() {
   const handleApprove = async () => {
     try {
       await goalService.approve(id);
-      toast.success('Goal approved!');
+      toast.success('Strategy approved');
       loadGoal();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to approve goal');
+      toast.error('Approval failed');
     }
   };
 
   const handleReject = async () => {
-    const reason = prompt('Enter rejection reason:');
-    if (!reason) return;
+    setShowInterventionModal(true);
+  };
+
+  const handleInterventionSubmit = async (reason) => {
     try {
       await goalService.reject(id, reason);
-      toast.success('Goal rejected');
+      toast.success('Intervention recorded');
       loadGoal();
+      setShowInterventionModal(false);
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to reject goal');
+      toast.error('Rejection failed');
     }
   };
 
   const handleSubmit = async () => {
     try {
       await goalService.submit(id);
-      toast.success('Goal submitted for approval!');
+      toast.success('Deployed for approval');
       loadGoal();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to submit goal');
+      toast.error('Deployment failed');
     }
   };
 
   const handleComplete = async () => {
     try {
       await goalService.complete(id);
-      toast.success('Goal marked as completed!');
+      toast.success('Execution complete');
       loadGoal();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to complete goal');
+      toast.error('Completion failed');
     }
   };
 
-  const canApprove = currentUser?.role === 'admin' || currentUser?.role === 'manager';
-  const isAssignee = goal?.assignee_id === currentUser?.id;
-  const isCreator = goal?.creator_id === currentUser?.id;
+  if (loading) return (
+    <Layout>
+      <div style={{ height: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 32, height: 32, borderRadius: "50%", border: `3px solid ${COLORS.border}`, borderTopColor: COLORS.accent, animation: "spin 1s linear infinite" }} />
+      </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </Layout>
+  );
 
-  if (loading) {
-    return (
-      <Layout>
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-        </div>
-      </Layout>
-    );
-  }
+  const canApprove = currentUser?.role === 'admin' || currentUser?.role === 'manager';
+  const isAssignee = goal?.owner_id === currentUser?.id;
+  const isCreator = goal?.creator_id === currentUser?.id;
 
   return (
     <Layout>
-      <div className="max-w-5xl mx-auto space-y-6">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">{goal.title}</h1>
-            <div className="flex items-center space-x-3 mt-2">
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_COLORS[goal.status]}`}>
-                {formatEnumValue(goal.status)}
-              </span>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${PRIORITY_COLORS[goal.priority]}`}>
-                {formatEnumValue(goal.priority)}
-              </span>
-              {goal.is_at_risk && (
-                <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
-                  ⚠ At Risk
-                </span>
-              )}
-            </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+        
+        {/* Breadcrumb & Navigation */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+             <button onClick={() => navigate(-1)} style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, padding: 8, borderRadius: 10, cursor: "pointer", color: COLORS.muted }}>
+                <ArrowLeft size={16} />
+             </button>
+             <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: COLORS.muted }}>
+                <Link to="/goals" style={{ textDecoration: "none", color: "inherit" }}>Strategic Pipeline</Link>
+                <ChevronRight size={14} />
+                <span style={{ color: COLORS.text }}>OBJ-{id}</span>
+             </div>
           </div>
-
-          <div className="flex space-x-2">
+          <div style={{ display: "flex", gap: 10 }}>
             {goal.status === GoalStatus.DRAFT && isCreator && (
-              <button onClick={handleSubmit} className="btn btn-primary">Submit for Approval</button>
+              <button onClick={handleSubmit} style={{ background: COLORS.accent, border: "none", padding: "10px 20px", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Submit for Approval</button>
             )}
             {goal.status === GoalStatus.PENDING_APPROVAL && canApprove && (
               <>
-                <button onClick={handleApprove} className="btn btn-primary">Approve</button>
-                <button onClick={handleReject} className="btn btn-danger">Reject</button>
+                <button onClick={handleApprove} style={{ background: COLORS.emerald, border: "none", padding: "10px 20px", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Approve Strategy</button>
+                <button onClick={handleReject} style={{ background: COLORS.rose, border: "none", padding: "10px 20px", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Intervene / Reject</button>
               </>
             )}
             {goal.status === GoalStatus.ACTIVE && isAssignee && (
               <>
-                <button onClick={() => setShowProgressModal(true)} className="btn btn-primary">Update Progress</button>
-                <button onClick={handleComplete} className="btn btn-secondary">Mark Complete</button>
+                <button onClick={() => setShowProgressModal(true)} style={{ background: COLORS.accent, border: "none", padding: "10px 20px", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Action Progress</button>
+                {goal.completion_percentage === 100 ? (
+                   <button onClick={handleComplete} style={{ background: COLORS.emerald, border: "none", padding: "10px 20px", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", boxShadow: `0 4px 12px ${COLORS.emerald}40` }}>Finalize Objective</button>
+                ) : (
+                   <button onClick={handleComplete} style={{ background: COLORS.bg, border: `1.5px solid ${COLORS.border}`, padding: "10px 20px", borderRadius: 10, color: COLORS.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Mark Completed</button>
+                )}
               </>
+            )}
+            {goal.status === GoalStatus.AWAITING_FEEDBACK && isAssignee && !goal.feedbacks?.some(f => f.feedback_type === FeedbackType.EMPLOYEE) && (
+               <button onClick={() => navigate('/performance')} style={{ background: COLORS.violet, border: "none", padding: "10px 20px", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", boxShadow: `0 4px 12px ${COLORS.violet}40` }}>Submit Self-Reflection</button>
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="card">
-            <h3 className="text-sm font-medium text-gray-500 mb-1">Progress</h3>
-            <div className="flex items-center space-x-3">
-              <div className="flex-1 bg-gray-200 rounded-full h-3">
-                <div
-                  className="bg-primary-600 h-3 rounded-full transition-all"
-                  style={{ width: `${goal.completion_percentage}%` }}
-                />
-              </div>
-              <span className="text-2xl font-bold">{goal.completion_percentage}%</span>
+        {/* Main Content Grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 24, alignItems: "start" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            {/* Header Card */}
+            <div style={{
+              background: COLORS.card, border: `1.5px solid ${COLORS.border}`,
+              borderRadius: 24, padding: 32, display: "flex", flexDirection: "column", gap: 20,
+              boxShadow: "0 1px 4px rgba(0,0,0,0.03)",
+            }}>
+               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <h1 style={{ fontSize: 28, fontWeight: 800, color: COLORS.text, letterSpacing: "-0.04em" }}>{goal.title}</h1>
+                        <div style={{
+                           padding: "4px 12px", borderRadius: 6,
+                           background: goal.status === GoalStatus.ACTIVE ? `${COLORS.accent}12` : `${COLORS.muted}12`,
+                           color: goal.status === GoalStatus.ACTIVE ? COLORS.accent : COLORS.muted,
+                           fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+                        }}>
+                           {formatEnumValue(goal.status)}
+                        </div>
+                     </div>
+                     <p style={{ fontSize: 15, color: COLORS.muted, lineHeight: 1.6, maxWidth: "90%" }}>{goal.description || "No strategic narrative provided for this objective."}</p>
+                  </div>
+                  <div style={{ width: 48, height: 48, borderRadius: 12, background: `${COLORS.accent}10`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                     <Target size={24} color={COLORS.accent} />
+                  </div>
+               </div>
+
+               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 24, paddingTop: 24, borderTop: `1px solid ${COLORS.border}` }}>
+                  {[
+                    { label: "Execution Velocity", value: `${goal.completion_percentage}%`, icon: Activity, color: COLORS.accent },
+                    { label: "Time Elapsed", value: `${goal.time_elapsed_percentage}%`, icon: Clock, color: COLORS.amber },
+                    { label: "Strategic Weightage", value: `${goal.weightage}%`, icon: Award, color: COLORS.violet },
+                  ].map((m, i) => (
+                    <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <m.icon size={14} color={COLORS.subtle} />
+                          <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>{m.label}</span>
+                       </div>
+                       <div style={{ fontSize: 24, fontWeight: 800, color: COLORS.text }}>{m.value}</div>
+                       <div style={{ width: "100%", height: 5, background: COLORS.bg, borderRadius: 10, overflow: "hidden" }}>
+                          <div style={{ width: m.value, height: "100%", background: m.color, borderRadius: 10 }} />
+                       </div>
+                    </div>
+                  ))}
+               </div>
+            </div>
+
+            {/* Subtasks */}
+            <SubtasksSection goal={goal} loadGoal={loadGoal} isAssignee={isAssignee} />
+
+            {/* Feedback & Scoring */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+               <FeedbackSection goal={goal} loadGoal={loadGoal} currentUser={currentUser} />
+               <ScoreSection goal={goal} loadGoal={loadGoal} canScore={canApprove} />
             </div>
           </div>
 
-          <div className="card">
-            <h3 className="text-sm font-medium text-gray-500 mb-1">Time Elapsed</h3>
-            <p className="text-2xl font-bold">{goal.time_elapsed_percentage}%</p>
-            <p className="text-sm text-gray-600 mt-1">{goal.days_remaining} days remaining</p>
-          </div>
+          {/* Sidebar Sidebar */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+             {/* Risk Card */}
+             {goal.is_at_risk && (
+               <div style={{
+                 background: `${COLORS.rose}08`, border: `1.5px solid ${COLORS.rose}30`,
+                 borderRadius: 20, padding: 24, display: "flex", flexDirection: "column", gap: 12,
+               }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, color: COLORS.rose }}>
+                     <AlertTriangle size={18} />
+                     <span style={{ fontSize: 14, fontWeight: 800 }}>Detected Risk Flag</span>
+                  </div>
+                  <p style={{ fontSize: 12, color: COLORS.rose, fontWeight: 500, lineHeight: 1.5 }}>
+                     Progress is below the 50% threshold despite 70% time elapsed. Administrative intervention suggested.
+                  </p>
+               </div>
+             )}
 
-          <div className="card">
-            <h3 className="text-sm font-medium text-gray-500 mb-1">Weightage</h3>
-            <p className="text-2xl font-bold">{goal.weightage}%</p>
+             {/* Meta Card */}
+             <div style={{
+               background: COLORS.card, border: `1.5px solid ${COLORS.border}`,
+               borderRadius: 20, padding: 24, display: "flex", flexDirection: "column", gap: 20,
+             }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: COLORS.text }}>Objective Metadata</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                   {[
+                     { label: "Pipeline Level", value: goal.level, icon: Target },
+                     { label: "Classification", value: goal.tag, icon: Award },
+                     { label: "Deployment Date", value: formatDate(goal.start_date), icon: Calendar },
+                     { label: "Target Deadline", value: formatDate(goal.due_date), icon: Clock },
+                   ].map((item, i) => (
+                     <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                           <item.icon size={14} color={COLORS.subtle} />
+                           <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.muted }}>{item.label}</span>
+                        </div>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, textTransform: "capitalize" }}>{item.value}</span>
+                     </div>
+                   ))}
+                </div>
+
+                <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: 20, marginTop: 4, display: "flex", flexDirection: "column", gap: 16 }}>
+                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: COLORS.subtle, textTransform: "uppercase" }}>Strategic Owner</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                         <div style={{ width: 28, height: 28, borderRadius: 8, background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: COLORS.muted }}>{goal.owner?.name?.charAt(0)}</div>
+                         <div style={{ display: "flex", flexDirection: "column" }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.text }}>{goal.owner?.name}</span>
+                            <span style={{ fontSize: 11, color: COLORS.muted }}>{goal.owner?.department}</span>
+                         </div>
+                      </div>
+                   </div>
+                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: COLORS.subtle, textTransform: "uppercase" }}>Created By</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                         <div style={{ width: 28, height: 28, borderRadius: 8, background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: COLORS.muted }}>{goal.creator?.name?.charAt(0)}</div>
+                         <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.text }}>{goal.creator?.name}</span>
+                      </div>
+                   </div>
+                </div>
+             </div>
           </div>
         </div>
-
-        <div className="card">
-          <h2 className="text-xl font-semibold mb-4">Details</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-gray-500">Level</p>
-              <p className="font-medium capitalize">{goal.level}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Tag</p>
-              <p className="font-medium capitalize">{goal.tag}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Start Date</p>
-              <p className="font-medium">{formatDate(goal.start_date)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Due Date</p>
-              <p className="font-medium">{formatDate(goal.due_date)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Assignee</p>
-              <p className="font-medium">{goal.assignee?.name}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Creator</p>
-              <p className="font-medium">{goal.creator?.name}</p>
-            </div>
-          </div>
-          {goal.description && (
-            <div className="mt-4">
-              <p className="text-sm text-gray-500">Description</p>
-              <p className="mt-1">{goal.description}</p>
-            </div>
-          )}
-        </div>
-
-        <SubtasksSection goal={goal} loadGoal={loadGoal} isAssignee={isAssignee} />
-        <FeedbackSection goal={goal} loadGoal={loadGoal} currentUser={currentUser} />
-        <ScoreSection goal={goal} loadGoal={loadGoal} canScore={canApprove} />
 
         {showProgressModal && (
           <ProgressModal goal={goal} onClose={() => setShowProgressModal(false)} onSuccess={loadGoal} />
+        )}
+
+        {showInterventionModal && (
+          <InterventionModal onClose={() => setShowInterventionModal(false)} onSubmit={handleInterventionSubmit} />
         )}
       </div>
     </Layout>
@@ -208,18 +294,21 @@ export default function GoalDetail() {
 function SubtasksSection({ goal, loadGoal, isAssignee }) {
   const [showModal, setShowModal] = useState(false);
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [processing, setProcessing] = useState(false);
 
   const handleAdd = async () => {
+    if (!title) return;
+    setProcessing(true);
     try {
-      await goalService.addSubtask(goal.id, { title, description });
-      toast.success('Subtask added!');
+      await goalService.addSubtask(goal.id, { title, description: "" });
+      toast.success('Milestone added');
       setTitle('');
-      setDescription('');
       setShowModal(false);
       loadGoal();
     } catch (error) {
-      toast.error('Failed to add subtask');
+       toast.error('Failed to add milestone');
+    } finally {
+       setProcessing(false);
     }
   };
 
@@ -228,350 +317,239 @@ function SubtasksSection({ goal, loadGoal, isAssignee }) {
       await goalService.updateSubtask(goal.id, subtask.id, { is_completed: !subtask.is_completed });
       loadGoal();
     } catch (error) {
-      toast.error('Failed to update subtask');
+      toast.error('Update failed');
     }
   };
 
   const handleDelete = async (subtaskId) => {
-    if (!confirm('Delete this subtask?')) return;
+    if (!confirm("Remove this milestone?")) return;
     try {
       await goalService.deleteSubtask(goal.id, subtaskId);
-      toast.success('Subtask deleted');
+      toast.success('Milestone removed');
       loadGoal();
     } catch (error) {
-      toast.error('Failed to delete subtask');
+       toast.error('Failed to remove milestone');
     }
   };
 
   return (
-    <div className="card">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">Subtasks</h2>
-        {isAssignee && (goal.status === GoalStatus.ACTIVE || goal.status === GoalStatus.DRAFT) && (
-          <button onClick={() => setShowModal(true)} className="btn btn-primary flex items-center space-x-1">
-            <Plus className="w-4 h-4" />
-            <span>Add Subtask</span>
-          </button>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        {goal.subtasks?.map((subtask) => (
-          <div key={subtask.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-            <div className="flex items-center space-x-3 flex-1">
-              <input
-                type="checkbox"
-                checked={subtask.is_completed}
-                onChange={() => handleToggle(subtask)}
-                disabled={!isAssignee}
-                className="w-5 h-5 text-primary-600 rounded"
-              />
-              <div className={subtask.is_completed ? 'line-through text-gray-500' : ''}>
-                <p className="font-medium">{subtask.title}</p>
-                {subtask.description && <p className="text-sm text-gray-600">{subtask.description}</p>}
-              </div>
-            </div>
-            {isAssignee && (goal.status === GoalStatus.ACTIVE || goal.status === GoalStatus.DRAFT) && (
-              <button onClick={() => handleDelete(subtask.id)} className="text-red-600 hover:text-red-700">
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
+    <div style={{
+      background: COLORS.card, border: `1.5px solid ${COLORS.border}`,
+      borderRadius: 24, padding: 32, display: "flex", flexDirection: "column", gap: 20,
+    }}>
+       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+             <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text }}>Tactical Milestones</div>
+             <div style={{ fontSize: 13, color: COLORS.muted, marginTop: 2 }}>Granular sub-objectives required for success</div>
           </div>
-        ))}
-        {(!goal.subtasks || goal.subtasks.length === 0) && (
-          <p className="text-gray-500 text-center py-4">No subtasks yet</p>
-        )}
-      </div>
+          {isOwner && (
+            <button onClick={() => setShowModal(true)} style={{ background: COLORS.bg, border: `1px solid ${COLORS.border}`, padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, color: COLORS.text, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+               <Plus size={14} /> Add Milestone
+            </button>
+          )}
+       </div>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Add Subtask</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="input"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows="3"
-                  className="input"
-                />
-              </div>
-              <div className="flex space-x-2">
-                <button onClick={handleAdd} className="btn btn-primary">Add</button>
-                <button onClick={() => setShowModal(false)} className="btn btn-secondary">Cancel</button>
-              </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {goal.subtasks?.map((subtask) => (
+            <div key={subtask.id} style={{
+              display: "flex", alignItems: "center", gap: 14,
+              padding: "16px", background: COLORS.bg, borderRadius: 14,
+              opacity: subtask.is_completed ? 0.6 : 1, transition: "all 0.2s",
+              border: `1px solid transparent`,
+            }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = COLORS.border}
+            onMouseLeave={e => e.currentTarget.style.borderColor = "transparent"}
+            >
+               <input type="checkbox" checked={subtask.is_completed} onChange={() => handleToggle(subtask)} disabled={!isAssignee}
+                 style={{ width: 18, height: 18, borderRadius: 4, cursor: isAssignee ? "pointer" : "default", accentColor: COLORS.emerald }} />
+               <div style={{ flex: 1, fontSize: 14, fontWeight: 600, color: COLORS.text, textDecoration: subtask.is_completed ? "line-through" : "none" }}>{subtask.title}</div>
+               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                 {subtask.is_completed && <div style={{ fontSize: 10, fontWeight: 700, color: COLORS.emerald, background: `${COLORS.emerald}12`, padding: "2px 8px", borderRadius: 4 }}>COMPLETED</div>}
+                 {isAssignee && (
+                   <button onClick={() => handleDelete(subtask.id)} style={{ background: "none", border: "none", color: COLORS.subtle, cursor: "pointer", padding: 4, display: "flex", alignItems: "center", justifyContent: "center" }} title="Delete">
+                      <Trash2 size={14} />
+                   </button>
+                 )}
+               </div>
             </div>
+          ))}
+          {(!goal.subtasks || goal.subtasks.length === 0) && (
+             <div style={{ textAlign: "center", padding: 32, color: COLORS.subtle, fontSize: 13, border: `1px dashed ${COLORS.border}`, borderRadius: 16 }}>No milestones defined for this strategy.</div>
+          )}
+       </div>
+
+       {showModal && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+             <div style={{ background: "#fff", padding: 24, borderRadius: 20, width: 340, display: "flex", flexDirection: "column", gap: 16 }}>
+                <div style={{ fontSize: 16, fontWeight: 800 }}>New Milestone</div>
+                <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Milestone title..."
+                  style={{ padding: "10px 14px", border: `1.5px solid ${COLORS.border}`, borderRadius: 10, fontSize: 13, outline: "none" }} />
+                <div style={{ display: "flex", gap: 10 }}>
+                   <button onClick={() => setShowModal(false)} style={{ flex: 1, padding: 10, borderRadius: 10, border: `1px solid ${COLORS.border}`, background: "#fff", fontWeight: 700, cursor: "pointer" }}>Back</button>
+                   <button onClick={handleAdd} disabled={processing} style={{ flex: 1, padding: 10, borderRadius: 10, border: "none", background: COLORS.accent, color: "#fff", fontWeight: 700, cursor: "pointer" }}>Confirm</button>
+                </div>
+             </div>
           </div>
-        </div>
-      )}
+       )}
     </div>
   );
 }
 
 function ProgressModal({ goal, onClose, onSuccess }) {
   const [percentage, setPercentage] = useState(goal.completion_percentage);
-  const [notes, setNotes] = useState('');
+  const [processing, setProcessing] = useState(false);
 
   const handleSubmit = async () => {
+    setProcessing(true);
     try {
-      await goalService.updateProgress(goal.id, { completion_percentage: percentage, notes });
-      toast.success('Progress updated!');
+      await goalService.updateProgress(goal.id, percentage);
+      toast.success('Velocity updated');
       onSuccess();
       onClose();
     } catch (error) {
-      toast.error('Failed to update progress');
+       toast.error('Update failed');
+    } finally {
+       setProcessing(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        <h3 className="text-lg font-semibold mb-4">Update Progress</h3>
-        <div className="space-y-4">
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+       <div style={{ background: "#fff", padding: 32, borderRadius: 24, width: 380, display: "flex", flexDirection: "column", gap: 24 }}>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Completion Percentage: {percentage}%
-            </label>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={percentage}
-              onChange={(e) => setPercentage(Number(e.target.value))}
-              className="w-full"
-            />
+             <div style={{ fontSize: 18, fontWeight: 800 }}>Strategic Progress</div>
+             <p style={{ fontSize: 13, color: COLORS.muted, marginTop: 4 }}>Update the current execution velocity for this objective.</p>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows="3"
-              className="input"
-            />
+          
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 800 }}>
+                <span>Completion</span>
+                <span style={{ color: COLORS.accent }}>{percentage}%</span>
+             </div>
+             <input type="range" min="0" max="100" value={percentage} onChange={e => setPercentage(Number(e.target.value))} style={{ width: "100%", height: 6, background: COLORS.bg, borderRadius: 10 }} />
           </div>
-          <div className="flex space-x-2">
-            <button onClick={handleSubmit} className="btn btn-primary">Update</button>
-            <button onClick={onClose} className="btn btn-secondary">Cancel</button>
+
+          <div style={{ display: "flex", gap: 12 }}>
+             <button onClick={onClose} style={{ flex: 1, padding: 12, borderRadius: 12, border: `1.5px solid ${COLORS.border}`, background: "#fff", color: COLORS.muted, fontWeight: 700, cursor: "pointer" }}>Dismiss</button>
+             <button onClick={handleSubmit} disabled={processing} style={{ flex: 2, padding: 12, borderRadius: 12, border: "none", background: COLORS.accent, color: "#fff", fontWeight: 700, cursor: "pointer" }}>Confirm & Commit</button>
           </div>
-        </div>
-      </div>
+       </div>
     </div>
   );
 }
 
 function FeedbackSection({ goal, loadGoal, currentUser }) {
-  const [showModal, setShowModal] = useState(false);
-  const [feedbackType, setFeedbackType] = useState('');
-
-  const canSubmitMember = goal.status === GoalStatus.AWAITING_FEEDBACK && goal.assignee_id === currentUser?.id;
-  const canSubmitEvaluator = goal.status === GoalStatus.AWAITING_FEEDBACK && (currentUser?.role === 'admin' || currentUser?.role === 'manager');
-
-  const memberFeedback = goal.feedbacks?.find(f => f.feedback_type === FeedbackType.MEMBER);
+  const employeeFeedback = goal.feedbacks?.find(f => f.feedback_type === FeedbackType.EMPLOYEE);
   const evaluatorFeedback = goal.feedbacks?.find(f => f.feedback_type === FeedbackType.EVALUATOR);
 
   return (
-    <div className="card">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">Feedback</h2>
-        {canSubmitMember && !memberFeedback && (
-          <button onClick={() => { setFeedbackType(FeedbackType.MEMBER); setShowModal(true); }} className="btn btn-primary">
-            Submit Member Feedback
-          </button>
-        )}
-        {canSubmitEvaluator && !evaluatorFeedback && (
-          <button onClick={() => { setFeedbackType(FeedbackType.EVALUATOR); setShowModal(true); }} className="btn btn-primary">
-            Submit Evaluator Feedback
-          </button>
-        )}
-      </div>
-
-      <div className="space-y-4">
-        {memberFeedback && (
-          <div className="border border-gray-200 rounded-lg p-4">
-            <h3 className="font-semibold text-gray-900 mb-2">Member Feedback</h3>
-            <p className="text-sm text-gray-600 mb-2"><strong>Deliverables:</strong> {memberFeedback.deliverables}</p>
-            <p className="text-sm text-gray-600"><strong>Improvements:</strong> {memberFeedback.improvements}</p>
-          </div>
-        )}
-        {evaluatorFeedback && (
-          <div className="border border-gray-200 rounded-lg p-4">
-            <h3 className="font-semibold text-gray-900 mb-2">Evaluator Feedback</h3>
-            <div className="grid grid-cols-2 gap-2 text-sm mb-2">
-              <p><strong>Quality:</strong> {evaluatorFeedback.quality_rating}/5</p>
-              <p><strong>Timeliness:</strong> {evaluatorFeedback.timeliness_rating}/5</p>
-              <p><strong>Innovation:</strong> {evaluatorFeedback.innovation_rating}/5</p>
-              <p><strong>Collaboration:</strong> {evaluatorFeedback.collaboration_rating}/5</p>
-              <p><strong>Impact:</strong> {evaluatorFeedback.impact_rating}/5</p>
+    <div style={{
+      background: COLORS.card, border: `1.5px solid ${COLORS.border}`,
+      borderRadius: 24, padding: 32, display: "flex", flexDirection: "column", gap: 20,
+    }}>
+       <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text }}>Strategic Feedback</div>
+       
+       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {employeeFeedback && (
+            <div style={{ padding: "16px", background: COLORS.bg, borderRadius: 16, borderLeft: `3px solid ${COLORS.accent}` }}>
+               <div style={{ fontSize: 12, fontWeight: 800, color: COLORS.accent, textTransform: "uppercase" }}>Member Reflection</div>
+               <div style={{ fontSize: 13, color: COLORS.text, marginTop: 8, lineHeight: 1.5 }}>{employeeFeedback.deliverables}</div>
             </div>
-            <p className="text-sm text-gray-600"><strong>Comment:</strong> {evaluatorFeedback.evaluator_comment}</p>
-          </div>
-        )}
-        {!memberFeedback && !evaluatorFeedback && (
-          <p className="text-gray-500 text-center py-4">No feedback submitted yet</p>
-        )}
-      </div>
-
-      {showModal && (
-        <FeedbackModal
-          goalId={goal.id}
-          feedbackType={feedbackType}
-          onClose={() => setShowModal(false)}
-          onSuccess={() => { loadGoal(); setShowModal(false); }}
-        />
-      )}
-    </div>
-  );
-}
-
-function FeedbackModal({ goalId, feedbackType, onClose, onSuccess }) {
-  const [formData, setFormData] = useState(
-    feedbackType === FeedbackType.MEMBER
-      ? { deliverables: '', improvements: '' }
-      : { quality_rating: 3, timeliness_rating: 3, innovation_rating: 3, collaboration_rating: 3, impact_rating: 3, evaluator_comment: '' }
-  );
-
-  const handleSubmit = async () => {
-    try {
-      await goalService.submitFeedback(goalId, { feedback_type: feedbackType, ...formData });
-      toast.success('Feedback submitted!');
-      onSuccess();
-    } catch (error) {
-      toast.error('Failed to submit feedback');
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <h3 className="text-lg font-semibold mb-4">
-          {feedbackType === FeedbackType.MEMBER ? 'Member Feedback' : 'Evaluator Feedback'}
-        </h3>
-        <div className="space-y-4">
-          {feedbackType === FeedbackType.MEMBER ? (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Deliverables</label>
-                <textarea
-                  value={formData.deliverables}
-                  onChange={(e) => setFormData({ ...formData, deliverables: e.target.value })}
-                  rows="3"
-                  className="input"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Improvements</label>
-                <textarea
-                  value={formData.improvements}
-                  onChange={(e) => setFormData({ ...formData, improvements: e.target.value })}
-                  rows="3"
-                  className="input"
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              {['quality', 'timeliness', 'innovation', 'collaboration', 'impact'].map((field) => (
-                <div key={field}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1 capitalize">
-                    {field} Rating: {formData[`${field}_rating`]}/5
-                  </label>
-                  <input
-                    type="range"
-                    min="1"
-                    max="5"
-                    value={formData[`${field}_rating`]}
-                    onChange={(e) => setFormData({ ...formData, [`${field}_rating`]: Number(e.target.value) })}
-                    className="w-full"
-                  />
-                </div>
-              ))}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Comment</label>
-                <textarea
-                  value={formData.evaluator_comment}
-                  onChange={(e) => setFormData({ ...formData, evaluator_comment: e.target.value })}
-                  rows="3"
-                  className="input"
-                />
-              </div>
-            </>
           )}
-          <div className="flex space-x-2">
-            <button onClick={handleSubmit} className="btn btn-primary">Submit</button>
-            <button onClick={onClose} className="btn btn-secondary">Cancel</button>
-          </div>
-        </div>
-      </div>
+          {evaluatorFeedback && (
+            <div style={{ padding: "16px", background: COLORS.bg, borderRadius: 16, borderLeft: `3px solid ${COLORS.violet}` }}>
+               <div style={{ fontSize: 12, fontWeight: 800, color: COLORS.violet, textTransform: "uppercase" }}>Evaluator Rating</div>
+               <div style={{ fontSize: 13, color: COLORS.text, marginTop: 8, lineHeight: 1.5 }}>{evaluatorFeedback.evaluator_comment}</div>
+            </div>
+          )}
+          {!employeeFeedback && !evaluatorFeedback && (
+            <div style={{ textAlign: "center", padding: 24, border: `1.5px dashed ${COLORS.border}`, borderRadius: 16, color: COLORS.subtle, fontSize: 13, display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
+               <span>No feedback entries detected.</span>
+               {goal.status === GoalStatus.AWAITING_FEEDBACK && currentUser?.id === goal.owner_id && (
+                 <button onClick={() => navigate('/performance')} style={{ background: COLORS.accent, color: "#fff", border: "none", padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Open Feedback Window</button>
+               )}
+            </div>
+          )}
+       </div>
     </div>
   );
 }
 
 function ScoreSection({ goal, loadGoal, canScore }) {
-  const [showModal, setShowModal] = useState(false);
-  const [rating, setRating] = useState(PerformanceRating.MEETS_EXPECTATIONS);
+  return (
+    <div style={{
+      background: COLORS.card, border: `1.5px solid ${COLORS.border}`,
+      borderRadius: 24, padding: 32, display: "flex", flexDirection: "column", gap: 20,
+    }}>
+       <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text }}>Final Grading</div>
+       
+       {goal.score ? (
+         <div style={{ padding: 24, background: `${COLORS.emerald}08`, borderRadius: 16, border: `1px solid ${COLORS.emerald}30`, textAlign: "center" }}>
+            <Award size={32} color={COLORS.emerald} style={{ marginBottom: 16 }} />
+            <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.text, textTransform: "capitalize" }}>{formatEnumValue(goal.score.rating)}</div>
+            <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 4 }}>Scored by {goal.score.scored_by?.name} on {formatDate(goal.score.scored_at)}</div>
+         </div>
+       ) : (
+         <div style={{ textAlign: "center", padding: 24, border: `1.5px dashed ${COLORS.border}`, borderRadius: 16, color: COLORS.subtle, fontSize: 13 }}>Waiting for evaluation phase.</div>
+       )}
+    </div>
+  );
+}
+
+function InterventionModal({ onClose, onSubmit }) {
+  const [reason, setReason] = useState("");
+  const [processing, setProcessing] = useState(false);
 
   const handleSubmit = async () => {
-    try {
-      await goalService.submitScore(goal.id, { rating });
-      toast.success('Score submitted!');
-      loadGoal();
-      setShowModal(false);
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to submit score');
+    if (!reason.trim()) {
+      toast.error("Please provide a rationale");
+      return;
     }
+    setProcessing(true);
+    await onSubmit(reason);
+    setProcessing(false);
   };
 
   return (
-    <div className="card">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">Score</h2>
-        {goal.status === GoalStatus.SCORABLE && canScore && (
-          <button onClick={() => setShowModal(true)} className="btn btn-primary">Submit Score</button>
-        )}
-      </div>
-
-      {goal.score ? (
-        <div className="border border-gray-200 rounded-lg p-4">
-          <p className="text-lg font-semibold capitalize">{formatEnumValue(goal.score.rating)}</p>
-          <p className="text-sm text-gray-600 mt-1">Scored by: {goal.score.scored_by?.name}</p>
-          <p className="text-sm text-gray-600">Date: {formatDate(goal.score.scored_at)}</p>
-        </div>
-      ) : (
-        <p className="text-gray-500 text-center py-4">No score yet</p>
-      )}
-
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Submit Score</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Performance Rating</label>
-                <select value={rating} onChange={(e) => setRating(e.target.value)} className="input">
-                  {Object.values(PerformanceRating).map((r) => (
-                    <option key={r} value={r}>{formatEnumValue(r)}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex space-x-2">
-                <button onClick={handleSubmit} className="btn btn-primary">Submit</button>
-                <button onClick={() => setShowModal(false)} className="btn btn-secondary">Cancel</button>
-              </div>
-            </div>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+       <div style={{ background: "#fff", padding: 32, borderRadius: 24, width: 440, display: "flex", flexDirection: "column", gap: 24, boxShadow: "0 20px 40px rgba(0,0,0,0.12)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+             <div style={{ width: 44, height: 44, borderRadius: 12, background: `${COLORS.rose}10`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Shield size={22} color={COLORS.rose} />
+             </div>
+             <div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>Intervention Rationale</div>
+                <p style={{ fontSize: 13, color: COLORS.muted, marginTop: 2 }}>Explain the reason for this administrative intervention.</p>
+             </div>
           </div>
-        </div>
-      )}
+          
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+             <label style={{ fontSize: 11, fontWeight: 800, color: COLORS.subtle, textTransform: "uppercase", letterSpacing: "0.05em" }}>Description</label>
+             <textarea rows="5" value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Goal alignment issues or budget reallocation..."
+               style={{ 
+                 width: "100%", padding: "14px", border: `1.5px solid ${COLORS.border}`, borderRadius: 14, 
+                 fontSize: 14, outline: "none", background: COLORS.bg, resize: "none",
+                 fontFamily: "inherit", lineHeight: 1.5, transition: "border 0.2s",
+               }} 
+               onFocus={e => e.target.style.borderColor = COLORS.rose}
+               onBlur={e => e.target.style.borderColor = COLORS.border}
+             />
+          </div>
+
+          <div style={{ display: "flex", gap: 12 }}>
+             <button onClick={onClose} style={{ flex: 1, padding: 14, borderRadius: 12, border: `1.5px solid ${COLORS.border}`, background: "#fff", color: COLORS.muted, fontWeight: 700, cursor: "pointer", transition: "all 0.2s" }}>Cancel</button>
+             <button onClick={handleSubmit} disabled={processing} 
+               style={{ 
+                 flex: 1.5, padding: 14, borderRadius: 12, border: "none", 
+                 background: COLORS.rose, color: "#fff", fontWeight: 700, cursor: "pointer", 
+                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                 opacity: processing ? 0.7 : 1, transition: "all 0.2s",
+                 boxShadow: `0 4px 12px ${COLORS.rose}33`,
+               }}>
+               {processing ? "Saving..." : "Confirm Intervention"}
+             </button>
+          </div>
+       </div>
     </div>
   );
 }

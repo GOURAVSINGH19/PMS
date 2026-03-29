@@ -1,131 +1,341 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Target, TrendingUp, Clock, AlertCircle, CheckCircle, Users, Filter } from 'lucide-react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import Layout from '../components/Layout';
-import { goalService } from '../services/goal';
-import { userService } from '../services/user';
-import { teamService } from '../services/team';
-import { GoalStatus, STATUS_COLORS, PRIORITY_COLORS } from '../constants/enums';
-import { formatEnumValue, formatDate } from '../utils/format';
-import { useAuthStore } from '../store/auth';
-import toast from 'react-hot-toast';
+import { goalService, userService, teamService, cycleService, notificationService, feedbackService, probationService, adminService } from '../api';
+import { GoalStatus } from '../constants/enums';
+import { useAuthStore } from "../store/auth";
+import toast from "react-hot-toast";
+import { 
+  AlertTriangle, ArrowDown, ArrowUp, CheckCircle, Flag, MessageSquare, Target, TrendingUp, 
+  Activity, Zap, BarChart3, Clock
+} from 'lucide-react';
 
-export default function Dashboard() {
-  const [goals, setGoals] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [teams, setTeams] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedTeam, setSelectedTeam] = useState('all');
-  const [selectedUser, setSelectedUser] = useState('all');
-  const [selectedStatus, setSelectedStatus] = useState('all');
-  const currentUser = useAuthStore((state) => state.user);
+const COLORS = {
+  bg: "#F5F4F0",
+  surface: "#FFFFFF",
+  card: "#FFFFFF",
+  border: "#E4E2DC",
+  accent: "#2563EB",
+  accentDim: "#1D4ED8",
+  emerald: "#059669",
+  amber: "#D97706",
+  rose: "#DC2626",
+  violet: "#7C3AED",
+  text: "#111111",
+  muted: "#6B7280",
+  subtle: "#9CA3AF",
+};
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      if (currentUser?.role === 'admin') {
-        const [goalsRes, usersRes, teamsRes] = await Promise.all([
-          goalService.getAll(),
-          userService.getAll(),
-          teamService.getAll()
-        ]);
-        setGoals(goalsRes.data);
-        setUsers(usersRes.data);
-        setTeams(teamsRes.data);
-      } else if (currentUser?.role === 'manager') {
-        const [goalsRes, usersRes] = await Promise.all([
-          goalService.getAll(),
-          userService.getAll()
-        ]);
-        console.log('Manager - Current user team_id:', currentUser.team_id);
-        console.log('Manager - All goals:', goalsRes.data);
-        console.log('Manager - All users:', usersRes.data);
-        setGoals(goalsRes.data);
-        setUsers(usersRes.data);
-      } else {
-        const goalsRes = await goalService.getAll();
-        setGoals(goalsRes.data);
-      }
-    } catch (error) {
-      toast.error('Failed to load data');
-      console.error('Load data error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Filter goals based on role and filters
-  const filteredGoals = goals.filter(goal => {
-    // Role-based filtering
-    if (currentUser?.role === 'member') {
-      if (goal.assignee_id !== currentUser.id && goal.creator_id !== currentUser.id) return false;
-    } else if (currentUser?.role === 'manager') {
-      // Manager sees goals where assignee is in their team OR goal is assigned to them
-      const isTeamMemberGoal = goal.assignee?.team_id === currentUser.team_id;
-      const isOwnGoal = goal.assignee_id === currentUser.id;
-      
-      console.log('Filtering goal:', goal.id, 'assignee team_id:', goal.assignee?.team_id, 'manager team_id:', currentUser.team_id, 'match:', isTeamMemberGoal);
-      
-      if (!isTeamMemberGoal && !isOwnGoal) return false;
-    }
-
-    // Team filter (admin only)
-    if (selectedTeam !== 'all') {
-      if (goal.assignee?.team_id !== parseInt(selectedTeam)) return false;
-    }
-
-    // User filter
-    if (selectedUser !== 'all') {
-      if (goal.assignee_id !== parseInt(selectedUser)) return false;
-    }
-
-    // Status filter
-    if (selectedStatus !== 'all') {
-      if (goal.status !== selectedStatus) return false;
-    }
-
-    return true;
-  });
-
-  const stats = {
-    total: filteredGoals.length,
-    active: filteredGoals.filter(g => g.status === GoalStatus.ACTIVE).length,
-    completed: filteredGoals.filter(g => g.status === GoalStatus.COMPLETED).length,
-    atRisk: filteredGoals.filter(g => g.is_at_risk).length,
-    pending: filteredGoals.filter(g => g.status === GoalStatus.PENDING_APPROVAL).length,
-    draft: filteredGoals.filter(g => g.status === GoalStatus.DRAFT).length,
-    awaitingFeedback: filteredGoals.filter(g => g.status === GoalStatus.AWAITING_FEEDBACK).length,
-    scorable: filteredGoals.filter(g => g.status === GoalStatus.SCORABLE).length,
-    scored: filteredGoals.filter(g => g.status === GoalStatus.SCORED).length
-  };
-
-  // Team members for manager
-  const teamMembers = currentUser?.role === 'manager' 
-    ? users.filter(u => u.team_id === currentUser.team_id && u.id !== currentUser.id)
-    : [];
-
-  const StatCard = ({ icon: Icon, label, value, color, onClick }) => (
-    <div onClick={onClick} className={`card hover:shadow-md transition-shadow ${onClick ? 'cursor-pointer' : ''}`}>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-600">{label}</p>
-          <p className="text-3xl font-bold mt-1">{value}</p>
+const StatCard = ({ label, value, icon: Icon, trend, trendValue, color, to }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const navigate = useNavigate();
+  
+  return (
+    <div 
+      onClick={() => to && navigate(to)} 
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      style={{
+        background: COLORS.card, 
+        border: `1.5px solid ${isHovered && to ? color : COLORS.border}`,
+        borderRadius: 16, 
+        padding: "20px 24px",
+        display: "flex", 
+        flexDirection: "column", 
+        gap: 12,
+        boxShadow: isHovered && to ? `0 12px 24px -10px ${color}20` : "0 1px 3px rgba(0,0,0,0.04)",
+        cursor: to ? "pointer" : "default",
+        transform: isHovered && to ? "translateY(-4px)" : "translateY(0)",
+        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</span>
+        <div style={{
+          width: 36, height: 36, borderRadius: 10,
+          background: `${color}10`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <Icon size={18} color={color} />
         </div>
-        <div className={`p-3 rounded-full ${color}`}>
-          <Icon className="w-6 h-6 text-white" />
-        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+        <span style={{ fontSize: 26, fontWeight: 800, color: COLORS.text }}>{value}</span>
+        {trend && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 4,
+            fontSize: 12, fontWeight: 700,
+            color: trend === 'up' ? COLORS.emerald : COLORS.rose,
+          }}>
+            {trend === 'up' ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+            {trendValue}
+          </div>
+        )}
       </div>
     </div>
   );
+};
 
-  if (loading) {
+const ProgressBar = ({ progress, color }) => (
+  <div style={{ width: "100%", height: 6, background: COLORS.bg, borderRadius: 10, overflow: "hidden" }}>
+    <div style={{ width: `${Math.min(100, Math.max(0, progress || 0))}%`, height: "100%", background: color || COLORS.accent, borderRadius: 10, transition: "width 0.8s ease" }} />
+  </div>
+);
+
+const StatusPill = ({ status }) => {
+  const config = {
+    [GoalStatus.ACTIVE]: { bg: `${COLORS.accent}12`, text: COLORS.accent, label: "Active" },
+    [GoalStatus.COMPLETED]: { bg: `${COLORS.emerald}12`, text: COLORS.emerald, label: "Completed" },
+    [GoalStatus.PENDING_APPROVAL]: { bg: `${COLORS.amber}12`, text: COLORS.amber, label: "Pending" },
+    [GoalStatus.AWAITING_FEEDBACK]: { bg: `${COLORS.violet}12`, text: COLORS.violet, label: "Feedback" },
+    [GoalStatus.SCORED]: { bg: `${COLORS.emerald}24`, text: COLORS.emerald, label: "Scored" },
+    "On Track": { bg: `${COLORS.emerald}12`, text: COLORS.emerald, label: "On Track" },
+    "At Risk": { bg: `${COLORS.rose}12`, text: COLORS.rose, label: "At Risk" },
+  };
+  const c = config[status] || { bg: COLORS.bg, text: COLORS.muted, label: status };
+  return (
+    <div style={{
+      display: "inline-flex", padding: "4px 10px", borderRadius: 6,
+      background: c.bg, color: c.text,
+      fontSize: 11, fontWeight: 700, letterSpacing: "-0.01em",
+    }}>
+      {c.label}
+    </div>
+  );
+};
+
+import { useNavigate } from 'react-router-dom';
+
+export default function Dashboard() {
+  const navigate = useNavigate();
+  const [goals, setGoals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState([]);
+  const [performanceForms, setPerformanceForms] = useState([]);
+  const [myProbation, setMyProbation] = useState(null);
+  const [adminData, setAdminData] = useState(null);
+  const [automation, setAutomation] = useState(null);
+  
+  const currentUser = useAuthStore((state) => state.user);
+
+  const loadData = useCallback(async () => {
+    if (!currentUser) return;
+    
+    setLoading(true);
+    try {
+      const fetchProbationSafely = async () => {
+        try {
+          const res = await probationService.getMe();
+          return res.data;
+        } catch (e) {
+          if (e.response?.status === 404) return null;
+          return null;
+        }
+    };
+
+      if (currentUser?.role === 'admin') {
+        const [adminRes, automationRes, notificationsRes] = await Promise.all([
+          adminService.getDashboard(),
+          adminService.getAutomationStatus(),
+          notificationService.getAll().catch(() => ({ data: [] }))
+        ]);
+        setAdminData(adminRes.data);
+        setAutomation(automationRes.data);
+        setNotifications(notificationsRes.data || []);
+      } else if (currentUser?.role === 'manager') {
+        const [goalsRes, notificationsRes, performanceRes, probationRes] = await Promise.all([
+          goalService.getAll().catch(() => ({ data: [] })),
+          notificationService.getAll().catch(() => ({ data: [] })),
+          feedbackService.getAll().catch(() => ({ data: [] })),
+          fetchProbationSafely()
+        ]);
+        setGoals(Array.isArray(goalsRes.data) ? goalsRes.data : []);
+        setNotifications(notificationsRes.data || []);
+        setPerformanceForms(performanceRes.data || []);
+        setMyProbation(probationRes || null);
+      } else {
+        const [goalsRes, notificationsRes, performanceRes, probationRes] = await Promise.all([
+          goalService.getAll().catch(() => ({ data: [] })),
+          notificationService.getAll().catch(() => ({ data: [] })),
+          feedbackService.getAll().catch(() => ({ data: [] })),
+          fetchProbationSafely()
+        ]);
+        setGoals(Array.isArray(goalsRes.data) ? goalsRes.data : []);
+        setNotifications(notificationsRes.data || []);
+        setPerformanceForms(performanceRes.data || []);
+        setMyProbation(probationRes || null);
+      }
+    } catch (error) {
+      console.error("Dashboard Load Error:", error);
+      toast.error('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const stats = useMemo(() => {
+    const defaultStats = {
+      total: 0, completed: 0, remaining: 0, atRisk: 0, avgCompletion: 0, approvalRate: 0,
+      orgPerformance: 0, pendingSubmissions: 0, openFlags: 0, criticalAlerts: 0
+    };
+
+    if (currentUser?.role === 'admin' && adminData) {
+      return {
+        ...defaultStats,
+        orgPerformance: adminData.overview?.org_performance || 0,
+        pendingSubmissions: (adminData.feedback?.total_forms || 0) - (adminData.feedback?.submitted || 0),
+        openFlags: (adminData.flags?.open || 0) + (adminData.flags?.escalated || 0),
+        criticalAlerts: (adminData.probation?.no_manager_assigned || 0) + (adminData.goals?.stalled_approvals || 0)
+      };
+    }
+
+    const safeGoals = Array.isArray(goals) ? goals : [];
+    
+    const completedCount = safeGoals.filter(g => g.status === GoalStatus.COMPLETED || g.completion_pct === 100).length;
+    const avgComp = safeGoals.length > 0 
+      ? Math.round(safeGoals.reduce((acc, g) => acc + (g.completion_pct || 0), 0) / safeGoals.length) 
+      : 0;
+
+    return {
+      ...defaultStats,
+      total: safeGoals.length,
+      completed: completedCount,
+      remaining: safeGoals.length - completedCount,
+      atRisk: safeGoals.filter(g => g.is_at_risk).length,
+      avgCompletion: avgComp,
+      approvalRate: safeGoals.length > 0
+        ? Math.round((safeGoals.filter(g => g.status !== GoalStatus.DRAFT).length / safeGoals.length) * 100)
+        : 0
+    };
+  }, [currentUser, adminData, goals]);
+
+  if (loading || !currentUser) return (
+    <Layout>
+      <div style={{ height: "60vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
+        <div style={{ width: 40, height: 40, borderRadius: "50%", border: `3px solid ${COLORS.border}`, borderTopColor: COLORS.accent, animation: "spin 1s linear infinite" }} />
+        <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.muted }}>Aligning your strategic data…</span>
+      </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </Layout>
+  );
+
+  if (currentUser.role === 'admin') {
     return (
       <Layout>
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <h1 style={{ fontSize: 26, fontWeight: 900, color: COLORS.text, letterSpacing: "-0.04em" }}>Strategic Command Center</h1>
+              <p style={{ fontSize: 14, color: COLORS.muted, marginTop: 4 }}>Organizational health & execution telemetry</p>
+            </div>
+            <div style={{ display: "flex", gap: 12 }}>
+              <div style={{ background: `${COLORS.accent}10`, color: COLORS.accent, padding: "8px 16px", borderRadius: 10, fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+                <Activity size={16} /> System Online
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24 }}>
+            <StatCard label="Org Performance" value={`${stats.orgPerformance}%`} icon={TrendingUp} color={COLORS.accent} trend="up" trendValue="Global Avg" />
+            <StatCard label="Pending Submissions" value={stats.pendingSubmissions} icon={MessageSquare} color={COLORS.amber} trend="down" trendValue="Forms" to="/performance" />
+            <StatCard label="Open Flags" value={stats.openFlags} icon={Flag} color={COLORS.rose} trend="up" trendValue="Requires Review" to="/notifications" />
+            <StatCard label="System Alerts" value={stats.criticalAlerts} icon={AlertTriangle} color={COLORS.rose} trend="up" trendValue="Critical" to="/notifications" />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 24 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              <div style={{ background: COLORS.card, border: `1.5px solid ${COLORS.border}`, borderRadius: 24, padding: 28 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <Clock size={20} color={COLORS.accent} />
+                    <span style={{ fontSize: 15, fontWeight: 800, color: COLORS.text, textTransform: "uppercase", letterSpacing: "0.03em" }}>Active Cycle Monitor</span>
+                  </div>
+                  <StatusPill status={adminData?.active_cycle?.name || "No Active Cycle"} />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                  <div style={{ padding: "20px", background: COLORS.bg, borderRadius: 18 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.text }}>{adminData?.active_cycle?.name || 'Annual Strategy Loop'}</span>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.accent }}>{adminData?.feedback?.completion_rate || 0}% Complete</span>
+                    </div>
+                    <ProgressBar progress={adminData?.feedback?.completion_rate || 0} color={COLORS.accent} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                    <div style={{ padding: "16px", border: `1px solid ${COLORS.border}`, borderRadius: 16 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, marginBottom: 8 }}>PROBATION TRACK</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>{adminData?.probation?.active || 0} <span style={{ fontSize: 12, color: COLORS.muted, fontWeight: 500 }}>Active</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div style={{ background: COLORS.card, border: `1.5px solid ${COLORS.border}`, borderRadius: 24, padding: 28 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+                  <BarChart3 size={20} color={COLORS.emerald} />
+                  <span style={{ fontSize: 15, fontWeight: 800, color: COLORS.text, textTransform: "uppercase", letterSpacing: "0.03em" }}>Goal Distribution</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
+                  <div style={{ padding: "20px", background: `${COLORS.accent}08`, borderRadius: 18, border: `1px solid ${COLORS.accent}15` }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.accent, marginBottom: 8 }}>COMPANY</div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: COLORS.text }}>{adminData?.goals?.distribution?.company || 0}</div>
+                  </div>
+                  <div style={{ padding: "20px", background: `${COLORS.violet}08`, borderRadius: 18, border: `1px solid ${COLORS.violet}15` }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.violet, marginBottom: 8 }}>TEAM</div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: COLORS.text }}>{adminData?.goals?.distribution?.team || 0}</div>
+                  </div>
+                  <div style={{ padding: "20px", background: `${COLORS.emerald}08`, borderRadius: 18, border: `1px solid ${COLORS.emerald}15` }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.emerald, marginBottom: 8 }}>INDIVIDUAL</div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: COLORS.text }}>{adminData?.goals?.distribution?.individual || 0}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              <div style={{ background: COLORS.card, border: `1.5px solid ${COLORS.border}`, borderRadius: 24, padding: 28 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+                  <Zap size={20} color={COLORS.rose} />
+                  <span style={{ fontSize: 15, fontWeight: 800, color: COLORS.text, textTransform: "uppercase", letterSpacing: "0.03em" }}>Escalation Queue</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ padding: "14px 18px", background: `${COLORS.rose}08`, borderRadius: 16, border: `1px solid ${COLORS.rose}15`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.rose }}>Aging Flags ({adminData?.flags?.aging_gt_5_days || 0})</div>
+                    <AlertTriangle size={16} color={COLORS.rose} />
+                  </div>
+                  <div style={{ padding: "14px 18px", background: `${COLORS.amber}08`, borderRadius: 16, border: `1px solid ${COLORS.amber}15`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.amber }}>Stalled Approvals ({adminData?.goals?.stalled_approvals || 0})</div>
+                    <Clock size={16} color={COLORS.amber} />
+                  </div>
+                </div>
+              </div>
+              <div style={{ background: COLORS.card, border: `1.5px solid ${COLORS.border}`, borderRadius: 24, padding: 28 }}>
+                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+                    <Activity size={20} color={COLORS.accent} />
+                    <span style={{ fontSize: 15, fontWeight: 800, color: COLORS.text, textTransform: "uppercase", letterSpacing: "0.03em" }}>Automation Pulse</span>
+                 </div>
+                 <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                       <span style={{ fontSize: 13, color: COLORS.muted }}>Trigger Success</span>
+                       <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.emerald }}>{automation?.triggers?.success_rate || 0}%</span>
+                    </div>
+                    <ProgressBar progress={automation?.triggers?.success_rate || 0} color={COLORS.emerald} />
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                       <div style={{ padding: "12px", background: COLORS.bg, borderRadius: 12, textAlign: "center" }}>
+                          <div style={{ fontSize: 10, color: COLORS.muted, marginBottom: 4 }}>SIGNALS (24H)</div>
+                          <div style={{ fontSize: 16, fontWeight: 800 }}>{automation?.signals?.volume_24h || 0}</div>
+                       </div>
+                    </div>
+                 </div>
+              </div>
+              <div style={{ background: `linear-gradient(135deg, ${COLORS.accent} 0%, ${COLORS.accentDim} 100%)`, borderRadius: 24, padding: 28, color: "white" }}>
+                 <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 16 }}>Report Center</h3>
+                 <button onClick={() => navigate('/reports')} style={{ width: "100%", background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 12, padding: "12px", color: "white", fontWeight: 700 }}>
+                    GO TO REPORTS
+                 </button>
+              </div>
+            </div>
+          </div>
         </div>
       </Layout>
     );
@@ -133,256 +343,15 @@ export default function Dashboard() {
 
   return (
     <Layout>
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              {currentUser?.role === 'admin' && 'Admin Dashboard'}
-              {currentUser?.role === 'manager' && 'Team Dashboard'}
-              {currentUser?.role === 'member' && 'My Dashboard'}
-            </h1>
-            <p className="text-gray-600 mt-1">
-              {currentUser?.role === 'admin' && 'Overview of all goals across organization'}
-              {currentUser?.role === 'manager' && `Managing ${teamMembers.length} team members`}
-              {currentUser?.role === 'member' && 'Track your personal goals and progress'}
-            </p>
-          </div>
-          <Link to="/goals/new" className="btn btn-primary">
-            Create Goal
-          </Link>
+      <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: COLORS.text }}>{currentUser.role === 'manager' ? 'Team Performance' : 'My Dashboard'}</h1>
         </div>
-
-        {/* Filters */}
-        {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && (
-          <div className="card">
-            <div className="flex items-center space-x-2 mb-3">
-              <Filter className="w-5 h-5 text-gray-600" />
-              <h3 className="font-semibold text-gray-900">Filters</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {currentUser?.role === 'admin' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Team</label>
-                  <select 
-                    value={selectedTeam} 
-                    onChange={(e) => setSelectedTeam(e.target.value)}
-                    className="input"
-                  >
-                    <option value="all">All Teams</option>
-                    {teams.map(team => (
-                      <option key={team.id} value={team.id}>{team.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {currentUser?.role === 'admin' ? 'User' : 'Team Member'}
-                </label>
-                <select 
-                  value={selectedUser} 
-                  onChange={(e) => setSelectedUser(e.target.value)}
-                  className="input"
-                >
-                  <option value="all">All Users</option>
-                  {(currentUser?.role === 'admin' 
-                    ? (selectedTeam === 'all' ? users : users.filter(u => u.team_id === parseInt(selectedTeam)))
-                    : teamMembers
-                  ).map(user => (
-                    <option key={user.id} value={user.id}>{user.name}</option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select 
-                  value={selectedStatus} 
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="input"
-                >
-                  <option value="all">All Statuses</option>
-                  {Object.values(GoalStatus).map(status => (
-                    <option key={status} value={status}>{formatEnumValue(status)}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Statistics */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          <StatCard 
-            icon={Target} 
-            label="Total Goals" 
-            value={stats.total} 
-            color="bg-primary-600"
-            onClick={() => setSelectedStatus('all')}
-          />
-          <StatCard 
-            icon={TrendingUp} 
-            label="Active" 
-            value={stats.active} 
-            color="bg-blue-600"
-            onClick={() => setSelectedStatus(GoalStatus.ACTIVE)}
-          />
-          <StatCard 
-            icon={CheckCircle} 
-            label="Completed" 
-            value={stats.completed} 
-            color="bg-green-600"
-            onClick={() => setSelectedStatus(GoalStatus.COMPLETED)}
-          />
-          <StatCard 
-            icon={AlertCircle} 
-            label="At Risk" 
-            value={stats.atRisk} 
-            color="bg-red-600"
-          />
-          <StatCard 
-            icon={Clock} 
-            label="Pending" 
-            value={stats.pending} 
-            color="bg-yellow-600"
-            onClick={() => setSelectedStatus(GoalStatus.PENDING_APPROVAL)}
-          />
-        </div>
-
-        {/* Additional Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard 
-            icon={Target} 
-            label="Draft" 
-            value={stats.draft} 
-            color="bg-gray-600"
-            onClick={() => setSelectedStatus(GoalStatus.DRAFT)}
-          />
-          <StatCard 
-            icon={Target} 
-            label="Awaiting Feedback" 
-            value={stats.awaitingFeedback} 
-            color="bg-purple-600"
-            onClick={() => setSelectedStatus(GoalStatus.AWAITING_FEEDBACK)}
-          />
-          <StatCard 
-            icon={Target} 
-            label="Scorable" 
-            value={stats.scorable} 
-            color="bg-indigo-600"
-            onClick={() => setSelectedStatus(GoalStatus.SCORABLE)}
-          />
-          <StatCard 
-            icon={Target} 
-            label="Scored" 
-            value={stats.scored} 
-            color="bg-emerald-600"
-            onClick={() => setSelectedStatus(GoalStatus.SCORED)}
-          />
-        </div>
-
-        {/* Team Members Overview (Manager only) */}
-        {currentUser?.role === 'manager' && teamMembers.length > 0 && (
-          <div className="card">
-            <h2 className="text-xl font-semibold mb-4 flex items-center space-x-2">
-              <Users className="w-5 h-5" />
-              <span>Team Members</span>
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {teamMembers.map(member => {
-                const memberGoals = filteredGoals.filter(g => g.assignee_id === member.id);
-                const activeGoals = memberGoals.filter(g => g.status === GoalStatus.ACTIVE).length;
-                const completedGoals = memberGoals.filter(g => g.status === GoalStatus.COMPLETED).length;
-                
-                return (
-                  <div 
-                    key={member.id} 
-                    onClick={() => setSelectedUser(member.id.toString())}
-                    className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors"
-                  >
-                    <h3 className="font-semibold text-gray-900">{member.name}</h3>
-                    <p className="text-sm text-gray-600">{member.email}</p>
-                    <div className="mt-3 flex space-x-4 text-sm">
-                      <div>
-                        <span className="text-gray-600">Active:</span>
-                        <span className="ml-1 font-semibold text-blue-600">{activeGoals}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Completed:</span>
-                        <span className="ml-1 font-semibold text-green-600">{completedGoals}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Goals List */}
-        <div className="card">
-          <h2 className="text-xl font-semibold mb-4">Goals Overview</h2>
-          <div className="space-y-3">
-            {filteredGoals.slice(0, 10).map((goal) => (
-              <Link
-                key={goal.id}
-                to={`/goals/${goal.id}`}
-                className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3">
-                    <h3 className="font-medium text-gray-900">{goal.title}</h3>
-                    {goal.is_at_risk && (
-                      <span className="text-xs px-2 py-1 bg-red-100 text-red-800 rounded-full font-medium">
-                        ⚠ At Risk
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
-                    <span className="capitalize">{goal.level}</span>
-                    <span>•</span>
-                    <span className="capitalize">{goal.tag}</span>
-                    <span>•</span>
-                    <span>{goal.assignee?.name || 'Unassigned'}</span>
-                    {(currentUser?.role === 'admin' || currentUser?.role === 'manager') && goal.assignee?.team?.name && (
-                      <>
-                        <span>•</span>
-                        <span className="text-primary-600">{goal.assignee.team.name}</span>
-                      </>
-                    )}
-                    <span>•</span>
-                    <span>Due: {formatDate(goal.due_date)}</span>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-4">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${PRIORITY_COLORS[goal.priority]}`}>
-                    {formatEnumValue(goal.priority)}
-                  </span>
-                  <div className="text-right">
-                    <div className="text-sm font-medium">{goal.completion_percentage}%</div>
-                    <div className="w-24 bg-gray-200 rounded-full h-2 mt-1">
-                      <div
-                        className="bg-primary-600 h-2 rounded-full"
-                        style={{ width: `${goal.completion_percentage}%` }}
-                      />
-                    </div>
-                  </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[goal.status]}`}>
-                    {formatEnumValue(goal.status)}
-                  </span>
-                </div>
-              </Link>
-            ))}
-            {filteredGoals.length === 0 && (
-              <p className="text-center text-gray-500 py-8">No goals found. Create your first goal!</p>
-            )}
-            {filteredGoals.length > 10 && (
-              <p className="text-center text-gray-600 py-4">
-                Showing 10 of {filteredGoals.length} goals
-              </p>
-            )}
-          </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24 }}>
+          <StatCard label="Tasks Completed" value={stats.completed} icon={CheckCircle} color={COLORS.emerald} />
+          <StatCard label="Tasks Remaining" value={stats.remaining} icon={Target} color={COLORS.accent} />
+          <StatCard label="Current Progress" value={`${stats.avgCompletion}%`} icon={TrendingUp} color={COLORS.accent} />
+          <StatCard label="At Risk Items" value={stats.atRisk} icon={AlertTriangle} color={COLORS.rose} />
         </div>
       </div>
     </Layout>

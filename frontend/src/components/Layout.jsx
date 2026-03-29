@@ -1,87 +1,244 @@
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, Target, Users, UserCircle, LayoutDashboard } from 'lucide-react';
+import {
+  LogOut, Target, Users, LayoutDashboard,
+  Calendar, ClipboardList, Bell, Search,
+  Activity, Award, RefreshCw, Flag, UserCheck, Settings, Zap,
+  ChevronDown, MoreHorizontal
+} from 'lucide-react';
 import { useAuthStore } from '../store/auth';
+import { notificationService } from '../api';
+
+const COLORS = {
+  bg: "#F5F4F0",
+  surface: "#FFFFFF",
+  card: "#FFFFFF",
+  border: "#E4E2DC",
+  accent: "#2563EB",
+  accentDim: "#1D4ED8",
+  emerald: "#059669",
+  amber: "#D97706",
+  rose: "#DC2626",
+  violet: "#7C3AED",
+  text: "#111111",
+  muted: "#6B7280",
+  subtle: "#9CA3AF",
+};
 
 export default function Layout({ children }) {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (user) {
+      loadUnreadCount();
+      const interval = setInterval(loadUnreadCount, 60000); // Poll every minute
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
+  const loadUnreadCount = async () => {
+    try {
+      const res = await notificationService.getUnreadCount();
+      setUnreadCount(res.data.unread);
+    } catch (e) {
+      console.error("Failed to load notifications count", e);
+    }
+  };
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
+
+  const navItems = [
+    { id: "/", label: "Dashboard", icon: LayoutDashboard },
+    { id: "/goals", label: "Goals", icon: Target },
+    { id: "/probation", label: "Probation", icon: UserCheck, roles: ["manager", "admin"] },
+    { id: "/cycles", label: "Review Cycles", icon: RefreshCw, roles: ["manager", "admin"] },
+    { id: "/feedback-flags", label: "Feedback & Flags", icon: Flag, roles: ["admin"] },
+    { id: "/reports", label: "Reports", icon: Activity, roles: ["manager", "admin"] },
+    { id: "/performance", label: "My Reviews", icon: ClipboardList },
+    { id: "/teams", label: "Team", icon: Users, roles: ["manager", "admin"] },
+    { id: "/users", label: "Users", icon: UserCheck, roles: ["admin"] },
+  ];
+
+  const filteredNavItems = navItems.filter(item =>
+    !item.roles || item.roles.includes(user?.role)
+  );
+
   const isActive = (path) => location.pathname === path;
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <nav className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <Link to="/" className="flex items-center space-x-2">
-                <Target className="w-8 h-8 text-primary-600" />
-                <span className="text-xl font-bold text-gray-900">GMS</span>
-              </Link>
-              
-              <div className="flex space-x-4">
-                <Link
-                  to="/"
-                  className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium ${
-                    isActive('/') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <LayoutDashboard className="w-4 h-4" />
-                  <span>Dashboard</span>
-                </Link>
-                
-                {user?.role === 'admin' && (
-                  <>
-                    <Link
-                      to="/users"
-                      className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium ${
-                        isActive('/users') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <UserCircle className="w-4 h-4" />
-                      <span>Users</span>
-                    </Link>
-                    
-                    <Link
-                      to="/teams"
-                      className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium ${
-                        isActive('/teams') ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      <Users className="w-4 h-4" />
-                      <span>Teams</span>
-                    </Link>
-                  </>
-                )}
+    <div style={{
+      fontFamily: "'DM Sans', sans-serif",
+      background: COLORS.bg, minHeight: "100vh",
+      display: "flex", flexDirection: "column",
+    }}>
+      {/* Top bar */}
+      <div style={{
+        background: COLORS.surface, borderBottom: `1px solid ${COLORS.border}`,
+        padding: "0 24px", height: 56,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        position: "sticky", top: 0, zIndex: 100,
+        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 8,
+            background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.violet})`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <Zap size={16} color="#fff" />
+          </div>
+          <span style={{ fontSize: 15, fontWeight: 800, color: COLORS.text, letterSpacing: "-0.02em" }}>
+            PMS
+          </span>
+        </div>
+        <div style={{ flex: 1, display: "flex", justifyContent: "center", padding: "0 40px" }}>
+          <div style={{ position: "relative", width: "100%", maxWidth: 400 }}>
+            <Search size={14} color={COLORS.subtle} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
+            <input type="text" placeholder="Jump to goals, teams or members... (Ctrl+K)"
+              style={{ width: "100%", height: 36, background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "0 12px 0 36px", fontSize: 12, fontWeight: 500, outline: "none", color: COLORS.text }} />
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* Role Badge */}
+          <div style={{
+            padding: "4px 12px",
+            background: user?.role === 'admin'
+              ? `${COLORS.violet}15`
+              : user?.role === 'manager'
+                ? `${COLORS.accent}15`
+                : `${COLORS.emerald}15`,
+            border: `1px solid ${user?.role === 'admin' ? `${COLORS.violet}40`
+              : user?.role === 'manager' ? `${COLORS.accent}40`
+                : `${COLORS.emerald}40`
+              }`,
+            borderRadius: 8,
+            fontSize: 11, fontWeight: 700,
+            color: user?.role === 'admin' ? COLORS.violet
+              : user?.role === 'manager' ? COLORS.accent
+                : COLORS.emerald,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+          }}>
+            {user?.role}
+          </div>
+
+          <div onClick={() => navigate('/notifications')} style={{
+            width: 32, height: 32, borderRadius: 8,
+            background: COLORS.bg, border: `1px solid ${COLORS.border}`,
+            display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+            position: "relative",
+          }}>
+            <Bell size={15} color={COLORS.muted} />
+            {unreadCount > 0 && (
+              <div style={{
+                position: "absolute", top: -4, right: -4,
+                width: 16, height: 16, borderRadius: "50%",
+                background: COLORS.rose, color: "#fff",
+                fontSize: 9, fontWeight: 800,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                border: `2px solid ${COLORS.surface}`,
+              }}>
+                {unreadCount > 9 ? '9+' : unreadCount}
               </div>
+            )}
+          </div>
+
+          <div onClick={() => navigate('/goals/new')} style={{
+            height: 32, padding: "0 12px", borderRadius: 8,
+            background: COLORS.accent, border: "none",
+            display: "flex", alignItems: "center", gap: 6, cursor: "pointer",
+            boxShadow: `0 4px 12px ${COLORS.accent}33`,
+          }}>
+            <Zap size={14} color="#fff" />
+            <span style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>Quick Action</span>
+          </div>
+
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8,
+            background: COLORS.bg, border: `1px solid ${COLORS.border}`,
+            borderRadius: 8, padding: "4px 10px",
+            cursor: "pointer",
+          }}>
+            <div style={{
+              width: 24, height: 24, borderRadius: 6,
+              background: COLORS.accent,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 10, fontWeight: 800, color: "#fff",
+            }}>
+              {user?.name?.charAt(0) || 'U'}
             </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="text-sm">
-                <div className="font-medium text-gray-900">{user?.name}</div>
-                <div className="text-gray-500 capitalize">{user?.role}</div>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="flex items-center space-x-1 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>Logout</span>
-              </button>
+            <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.text }}>
+              {user?.name}
+            </span>
+          </div>
+          <button onClick={handleLogout}
+            style={{
+              background: COLORS.bg, border: `1px solid ${COLORS.border}`,
+              borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 600,
+              color: COLORS.muted, cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
+            }}>
+            <LogOut size={12} /> Logout
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+        {/* Sidebar */}
+        <div style={{
+          width: 220, background: COLORS.surface,
+          borderRight: `1px solid ${COLORS.border}`,
+          padding: "16px 10px", display: "flex",
+          flexDirection: "column", gap: 2,
+          position: "sticky", top: 56, height: "calc(100vh - 56px)",
+          overflowY: "auto",
+        }}>
+          {filteredNavItems.map(item => {
+            const Icon = item.icon;
+            const active = isActive(item.id);
+            return (
+              <Link key={item.id} to={item.id}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "9px 12px", borderRadius: 9, cursor: "pointer",
+                  textDecoration: "none",
+                  background: active ? `${COLORS.accent}12` : "transparent",
+                  border: active ? `1px solid ${COLORS.accent}30` : "1px solid transparent",
+                }}>
+                <Icon size={15} color={active ? COLORS.accent : COLORS.muted} />
+                <span style={{
+                  fontSize: 13, fontWeight: active ? 600 : 500,
+                  color: active ? COLORS.text : COLORS.muted,
+                }}>{item.label}</span>
+              </Link>
+            );
+          })}
+
+          <div style={{ flex: 1 }} />
+          <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: 12, marginTop: 8 }}>
+            <div style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "9px 12px", borderRadius: 9, cursor: "pointer",
+            }}>
+              <Settings size={15} color={COLORS.muted} />
+              <span style={{ fontSize: 13, fontWeight: 500, color: COLORS.muted }}>Settings</span>
             </div>
           </div>
         </div>
-      </nav>
-      
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {children}
-      </main>
+
+        {/* Main content */}
+        <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
+          {children}
+        </div>
+      </div>
     </div>
   );
 }

@@ -12,7 +12,7 @@ export const GoalStatus = {
 export const UserRole = {
   ADMIN: 'admin',
   MANAGER: 'manager',
-  MEMBER: 'member'
+  EMPLOYEE: 'employee'
 };
 
 export const GoalLevel = {
@@ -37,7 +37,7 @@ export const GoalPriority = {
 };
 
 export const FeedbackType = {
-  MEMBER: 'member',
+  EMPLOYEE: 'employee',
   EVALUATOR: 'evaluator'
 };
 

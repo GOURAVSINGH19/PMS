@@ -1,99 +1,251 @@
 import { useEffect, useState } from 'react';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Plus, Edit, Trash2, Users as UsersIcon,
+  ShieldCheck, ArrowUpRight, ChevronRight,
+  Target, Activity, MoreHorizontal, Zap, RefreshCw, AlertTriangle
+} from 'lucide-react';
 import Layout from '../components/Layout';
-import { teamService } from '../services/team';
-import { userService } from '../services/user';
+import { teamService, userService, goalService, feedbackService } from '../api';
 import toast from 'react-hot-toast';
 
+const COLORS = {
+  bg: "#F5F4F0",
+  surface: "#FFFFFF",
+  card: "#FFFFFF",
+  border: "#E4E2DC",
+  accent: "#2563EB",
+  accentDim: "#1D4ED8",
+  emerald: "#059669",
+  amber: "#D97706",
+  rose: "#DC2626",
+  violet: "#7C3AED",
+  text: "#111111",
+  muted: "#6B7280",
+  subtle: "#9CA3AF",
+};
+
 export default function Teams() {
+  const navigate = useNavigate();
   const [teams, setTeams] = useState([]);
   const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
+  const [feedbacks, setFeedbacks] = useState([]);
   const [editingTeam, setEditingTeam] = useState(null);
-
+  const [loading, setLoading] = useState(true);
+  const [goals, setGoals] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [error, setError] = useState(false);
+  
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
+    setError(false);
+    setLoading(true);
     try {
-      const [teamsRes, usersRes] = await Promise.all([
+      const [teamsRes, usersRes, goalsRes, feedbacksRes] = await Promise.all([
         teamService.getAll(),
-        userService.getAll()
+        userService.getAll(),
+        goalService.getAll(),
+        feedbackService.getAll()
       ]);
       setTeams(teamsRes.data);
       setUsers(usersRes.data);
+      setGoals(goalsRes.data);
+      setFeedbacks(feedbacksRes.data);
     } catch (error) {
-      toast.error('Failed to load data');
+      setError(true);
+      toast.error('Failed to load team data');
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this team?')) return;
+    if (!confirm('Dissolve this team? This will unassign all members.')) return;
     try {
       await teamService.delete(id);
-      toast.success('Team deleted');
+      toast.success('Team dissolved');
       loadData();
     } catch (error) {
-      toast.error('Failed to delete team');
+      toast.error('Action failed');
     }
   };
 
-  if (loading) {
-    return (
-      <Layout>
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+  if (loading) return (
+    <Layout>
+      <div style={{ height: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 32, height: 32, borderRadius: "50%", border: `3px solid ${COLORS.border}`, borderTopColor: COLORS.accent, animation: "spin 1s linear infinite" }} />
+      </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </Layout>
+  );
+
+  if (error) return (
+    <Layout>
+      <div style={{ height: "60vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24 }}>
+        <div style={{ width: 64, height: 64, borderRadius: 20, background: `${COLORS.rose}10`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <AlertTriangle size={32} color={COLORS.rose} />
         </div>
-      </Layout>
-    );
-  }
+        <div style={{ textAlign: "center" }}>
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: COLORS.text }}>Failed to synchronize data</h2>
+          <p style={{ fontSize: 14, color: COLORS.muted, marginTop: 6 }}>The strategy engine experienced a connection timeout or server error.</p>
+        </div>
+        <button onClick={loadData} style={{
+          background: COLORS.accent, border: "none", padding: "12px 24px", borderRadius: 12,
+          color: "#fff", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 10,
+          cursor: "pointer", boxShadow: `0 8px 20px ${COLORS.accent}33`, transition: "all 0.2s",
+        }}>
+          <RefreshCw size={18} /> Retry Synchronization
+        </button>
+      </div>
+    </Layout>
+  );
 
   return (
     <Layout>
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Teams</h1>
-          <button onClick={() => { setEditingTeam(null); setShowModal(true); }} className="btn btn-primary flex items-center space-x-2">
-            <Plus className="w-4 h-4" />
-            <span>Add Team</span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 800, color: COLORS.text, letterSpacing: "-0.03em" }}>Squads & Brigades</h1>
+            <p style={{ fontSize: 14, color: COLORS.muted, marginTop: 4 }}>Organisational structure and cross-functional performance tracking</p>
+          </div>
+          <button onClick={() => { setEditingTeam(null); setShowModal(true); }}
+            style={{
+              background: COLORS.accent, border: "none",
+              padding: "10px 20px", borderRadius: 10, fontSize: 13, fontWeight: 700,
+              color: "#fff", display: "flex", alignItems: "center", gap: 8,
+              boxShadow: `0 4px 12px ${COLORS.accent}33`, cursor: "pointer",
+            }}>
+            <Plus size={16} /> Form New Squad
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {teams.map((team) => (
-            <div key={team.id} className="card">
-              <div className="flex justify-between items-start mb-4">
-                <h3 className="text-xl font-semibold text-gray-900">{team.name}</h3>
-                <div className="flex space-x-2">
-                  <button onClick={() => { setEditingTeam(team); setShowModal(true); }} className="text-primary-600 hover:text-primary-700">
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => handleDelete(team.id)} className="text-red-600 hover:text-red-700">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+        {/* Global Performance Summary */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
+          {[
+            { label: "Active Squads", value: teams.length, icon: UsersIcon, color: COLORS.accent },
+            { label: "Total Members", value: users.length, icon: ShieldCheck, color: COLORS.emerald },
+            {
+              label: "Compliance Rate",
+              value: users.length > 0
+                ? `${Math.round((feedbacks.filter(f => f.status === 'submitted').length / (users.length * 2 || 1)) * 100)}%`
+                : "0%",
+              icon: Activity, color: COLORS.violet
+            },
+          ].map((stat, i) => (
+            <div key={i} style={{
+              background: COLORS.card, border: `1px solid ${COLORS.border}`,
+              borderRadius: 16, padding: "16px 20px", display: "flex", alignItems: "center", gap: 16,
+            }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: `${stat.color}10`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <stat.icon size={18} color={stat.color} />
               </div>
-              <div className="space-y-2">
-                <div>
-                  <p className="text-sm text-gray-500">Manager</p>
-                  <p className="font-medium">{team.manager?.name || 'No manager'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Members</p>
-                  <p className="font-medium">{users.filter(u => u.team_id === team.id).length}</p>
-                </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>{stat.label}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.text }}>{stat.value}</div>
               </div>
             </div>
           ))}
         </div>
 
+        {/* Team Grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 24 }}>
+          {(Array.isArray(teams) ? teams : []).map((team) => {
+            const teamMembers = Array.isArray(team.members) ? team.members : [];
+            const teamMemberIds = teamMembers.map(m => m.id);
+            const teamGoals = (Array.isArray(goals) ? goals : []).filter(g => teamMemberIds.includes(g.owner_id));
+            const avgProgress = teamGoals.length > 0
+              ? Math.round(teamGoals.reduce((acc, g) => acc + (g.completion_pct || 0), 0) / teamGoals.length)
+              : 0;
+
+            return (
+              <div key={team.id}
+                onClick={() => navigate(`/goals?team_id=${team.id}`)}
+                style={{
+                  background: COLORS.card, border: `1.5px solid ${COLORS.border}`,
+                  borderRadius: 20, padding: 24, display: "flex", flexDirection: "column", gap: 20,
+                  transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)", boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                  cursor: "pointer",
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = COLORS.accent;
+                  e.currentTarget.style.transform = "translateY(-4px)";
+                  e.currentTarget.style.boxShadow = `0 12px 24px -10px ${COLORS.accent}20`;
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = COLORS.border;
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)";
+                }}
+              >
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <h3 style={{ fontSize: 16, fontWeight: 800, color: COLORS.text, letterSpacing: "-0.01em" }}>{team.name}</h3>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted }}>LEAD:</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.text }}>{team.manager?.name || "Unassigned"}</span>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <button onClick={(e) => { e.stopPropagation(); setEditingTeam(team); setShowModal(true); }}
+                      style={{ background: COLORS.bg, border: "none", padding: 6, borderRadius: 6, cursor: "pointer", color: COLORS.muted }}>
+                      <Edit size={14} />
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete(team.id); }}
+                      style={{ background: `${COLORS.rose}08`, border: "none", padding: 6, borderRadius: 6, cursor: "pointer", color: COLORS.rose }}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted }}>VELOCITY</span>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: COLORS.accent }}>{avgProgress}%</span>
+                  </div>
+                  <div style={{ width: "100%", height: 6, background: COLORS.bg, borderRadius: 10, overflow: "hidden" }}>
+                    <div style={{ width: `${avgProgress}%`, height: "100%", background: COLORS.accent, borderRadius: 10 }} />
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTop: `1px solid ${COLORS.border}` }}>
+                  <div style={{ display: "flex", alignItems: "center" }}>
+                    {teamMembers.slice(0, 3).map((m, i) => (
+                      <div key={i} style={{
+                        width: 24, height: 24, borderRadius: "50%",
+                        background: COLORS.bg, border: `2px solid ${COLORS.card}`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 9, fontWeight: 800, color: COLORS.muted,
+                        marginLeft: i === 0 ? 0 : -8,
+                        zIndex: 3 - i,
+                      }}>{m.name?.charAt(0)}</div>
+                    ))}
+                    {teamMembers.length > 3 && (
+                      <div style={{
+                        width: 24, height: 24, borderRadius: "50%",
+                        background: COLORS.bg, border: `2px solid ${COLORS.card}`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 9, fontWeight: 800, color: COLORS.muted,
+                        marginLeft: -8, zIndex: 0,
+                      }}>+{teamMembers.length - 3}</div>
+                    )}
+                    <span style={{ fontSize: 11, fontWeight: 600, color: COLORS.muted, marginLeft: 8 }}>{teamMembers.length} Members</span>
+                  </div>
+                  <ChevronRight size={14} color={COLORS.subtle} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
         {teams.length === 0 && (
-          <div className="card text-center py-12">
-            <p className="text-gray-500">No teams yet. Create your first team!</p>
+          <div style={{ border: `2px dashed ${COLORS.border}`, borderRadius: 20, padding: 64, textAlign: "center", color: COLORS.subtle }}>
+            No squads formed yet.
           </div>
         )}
 
@@ -124,48 +276,61 @@ function TeamModal({ team, users, onClose, onSuccess }) {
 
       if (team) {
         await teamService.update(team.id, data);
-        toast.success('Team updated!');
+        toast.success('Squad configuration updated');
       } else {
         await teamService.create(data);
-        toast.success('Team created!');
+        toast.success('New squad commissioned');
       }
       onSuccess();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to save team');
+      toast.error('Operation failed');
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        <h3 className="text-lg font-semibold mb-4">{team ? 'Edit Team' : 'Add Team'}</h3>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Team Name</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="input"
-              required
-            />
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+      fontFamily: "'DM Sans', sans-serif",
+    }}>
+      <div style={{
+        background: COLORS.surface, borderRadius: 20, padding: 32,
+        width: "100%", maxWidth: 400, display: "flex", flexDirection: "column", gap: 24,
+        boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
+      }}>
+        <div>
+          <h3 style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>{team ? "Reconfigure Squad" : "Commission New Squad"}</h3>
+          <p style={{ fontSize: 13, color: COLORS.muted, marginTop: 4 }}>Define administrative grouping and leadership</p>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>Squad Name</label>
+            <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              style={{ padding: "10px 14px", border: `1.5px solid ${COLORS.border}`, borderRadius: 10, fontSize: 13, outline: "none" }} required
+              placeholder="e.g. Engineering Brigade" />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Manager</label>
-            <select
-              value={formData.manager_id}
-              onChange={(e) => setFormData({ ...formData, manager_id: e.target.value })}
-              className="input"
-            >
-              <option value="">No Manager</option>
-              {users.filter(u => u.role === 'manager' || u.role === 'admin').map((user) => (
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>Operational Lead (Manager)</label>
+            <select value={formData.manager_id} onChange={(e) => setFormData({ ...formData, manager_id: e.target.value })}
+              style={{ padding: "10px 14px", border: `1.5px solid ${COLORS.border}`, borderRadius: 10, fontSize: 13, outline: "none", background: "#fff" }}>
+              <option value="">No Lead assigned</option>
+              {(Array.isArray(users) ? users : []).filter(u => u.role === 'manager' || u.role === 'admin').map((user) => (
                 <option key={user.id} value={user.id}>{user.name}</option>
               ))}
             </select>
           </div>
-          <div className="flex space-x-2">
-            <button type="submit" className="btn btn-primary">Save</button>
-            <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
+
+          <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
+            <button type="button" onClick={onClose}
+              style={{ flex: 1, padding: "12px", borderRadius: 11, border: `1.5px solid ${COLORS.border}`, background: "#fff", color: COLORS.muted, fontWeight: 700, cursor: "pointer" }}>
+              Dismiss
+            </button>
+            <button type="submit"
+              style={{ flex: 2, padding: "12px", borderRadius: 11, border: "none", background: COLORS.accent, color: "#fff", fontWeight: 700, cursor: "pointer" }}>
+              Confirm Squad
+            </button>
           </div>
         </form>
       </div>
