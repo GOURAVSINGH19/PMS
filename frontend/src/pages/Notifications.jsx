@@ -64,14 +64,13 @@ export default function Notifications() {
     }
   };
 
-  const getIcon = (category) => {
-    switch (category) {
-      case 'goal': return { icon: Target, color: COLORS.accent };
-      case 'feedback': return { icon: MessageSquare, color: COLORS.violet };
-      case 'probation': return { icon: Shield, color: COLORS.amber };
-      case 'system': return { icon: Zap, color: COLORS.emerald };
-      default: return { icon: Bell, color: COLORS.muted };
-    }
+  const getIcon = (type) => {
+    const t = (type || '').toLowerCase();
+    if (t.includes('goal')) return { icon: Target, color: COLORS.accent };
+    if (t.includes('review') || t.includes('feedback')) return { icon: MessageSquare, color: COLORS.violet };
+    if (t.includes('probation')) return { icon: Shield, color: COLORS.amber };
+    if (t.includes('score')) return { icon: Zap, color: COLORS.emerald };
+    return { icon: Bell, color: COLORS.muted };
   };
 
   if (loading) return (
@@ -119,7 +118,7 @@ export default function Notifications() {
         {/* Notif List */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {notifications.map((n) => {
-            const { icon: CategoryIcon, color } = getIcon(n.category);
+            const { icon: CategoryIcon, color } = getIcon(n.notification_type);
             return (
               <div 
                 key={n.id} 
@@ -158,7 +157,7 @@ export default function Notifications() {
                     <span style={{ fontSize: 15, fontWeight: 800, color: COLORS.text }}>{n.title}</span>
                     <span style={{ fontSize: 11, fontWeight: 600, color: COLORS.muted }}>{formatDate(n.created_at)}</span>
                   </div>
-                  <p style={{ fontSize: 13, color: COLORS.muted, lineHeight: 1.5, maxWidth: "95%" }}>{n.body}</p>
+                  <p style={{ fontSize: 13, color: COLORS.muted, lineHeight: 1.5, maxWidth: "95%" }}>{n.message}</p>
                 </div>
                 {!n.is_read && (
                   <div style={{

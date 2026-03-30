@@ -12,7 +12,7 @@ export const GoalStatus = {
 export const UserRole = {
   ADMIN: 'admin',
   MANAGER: 'manager',
-  EMPLOYEE: 'employee'
+  EMPLOYEE: 'member'
 };
 
 export const GoalLevel = {

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { 
-  Plus, Calendar, Users, Activity, CheckCircle, 
-  Clock, RefreshCw, Zap, ChevronRight, AlertTriangle
+  Plus, Calendar, Users, Clock, Zap, AlertTriangle
 } from 'lucide-react';
 import Layout from '../components/Layout';
 import { cycleService } from '../api';
@@ -10,19 +9,10 @@ import { useAuthStore } from '../store/auth';
 import toast from 'react-hot-toast';
 
 const COLORS = {
-  bg: "#F5F4F0",
-  surface: "#FFFFFF",
-  card: "#FFFFFF",
-  border: "#E4E2DC",
-  accent: "#2563EB",
-  accentDim: "#1D4ED8",
-  emerald: "#059669",
-  amber: "#D97706",
-  rose: "#DC2626",
-  violet: "#7C3AED",
-  text: "#111111",
-  muted: "#6B7280",
-  subtle: "#9CA3AF",
+  bg: "#F5F4F0", surface: "#FFFFFF", card: "#FFFFFF", border: "#E4E2DC",
+  accent: "#2563EB", accentDim: "#1D4ED8", emerald: "#059669",
+  amber: "#D97706", rose: "#DC2626", violet: "#7C3AED",
+  text: "#111111", muted: "#6B7280", subtle: "#9CA3AF",
 };
 
 export default function Cycles() {
@@ -31,28 +21,36 @@ export default function Cycles() {
   const [showModal, setShowModal] = useState(false);
   const currentUser = useAuthStore((state) => state.user);
 
-  useEffect(() => {
-    loadCycles();
-  }, []);
+  useEffect(() => { loadCycles(); }, []);
 
   const loadCycles = async () => {
     try {
-      const response = await cycleService.getAll();
-      setCycles(response.data);
-    } catch (error) {
+      const res = await cycleService.getAll();
+      setCycles(Array.isArray(res.data) ? res.data : []);
+    } catch {
       toast.error('Failed to load cycles');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleUpdateStatus = async (id, status) => {
+  const handleTrigger = async (id) => {
     try {
-      await cycleService.updateStatus(id, status);
-      toast.success(`Cycle ${status}`);
+      await cycleService.trigger(id);
+      toast.success('Cycle triggered');
       loadCycles();
-    } catch (error) {
-      toast.error('Status update failed');
+    } catch {
+      toast.error('Trigger failed');
+    }
+  };
+
+  const handleClose = async (id) => {
+    try {
+      await cycleService.close(id);
+      toast.success('Cycle closed');
+      loadCycles();
+    } catch {
+      toast.error('Close failed');
     }
   };
 
@@ -60,9 +58,9 @@ export default function Cycles() {
     return (
       <Layout>
         <div style={{ height: "60vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
-           <AlertTriangle size={40} color={COLORS.rose} />
-           <h2 style={{ fontSize: 20, fontWeight: 800, color: COLORS.text }}>Access Restricted</h2>
-           <p style={{ fontSize: 14, color: COLORS.muted }}>Review cycle management is reserved for administrative personnel.</p>
+          <AlertTriangle size={40} color={COLORS.rose} />
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: COLORS.text }}>Access Restricted</h2>
+          <p style={{ fontSize: 14, color: COLORS.muted }}>Review cycle management is reserved for administrative personnel.</p>
         </div>
       </Layout>
     );
@@ -80,111 +78,122 @@ export default function Cycles() {
   return (
     <Layout>
       <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-        
-        {/* Header */}
+
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 800, color: COLORS.text, letterSpacing: "-0.03em" }}>Review Cycles</h1>
-            <p style={{ fontSize: 14, color: COLORS.muted, marginTop: 4 }}>Manage performance orchestration and automated evaluation windows</p>
+            <p style={{ fontSize: 14, color: COLORS.muted, marginTop: 4 }}>Manage performance evaluation windows and review schedules</p>
           </div>
           {currentUser?.role === 'admin' && (
-            <button onClick={() => setShowModal(true)}
-              style={{
-                background: COLORS.accent, border: "none",
-                padding: "10px 20px", borderRadius: 10, fontSize: 13, fontWeight: 700,
-                color: "#fff", display: "flex", alignItems: "center", gap: 8,
-                boxShadow: `0 4px 12px ${COLORS.accent}33`, cursor: "pointer",
-              }}>
+            <button onClick={() => setShowModal(true)} style={{
+              background: COLORS.accent, border: "none", padding: "10px 20px",
+              borderRadius: 10, fontSize: 13, fontWeight: 700, color: "#fff",
+              display: "flex", alignItems: "center", gap: 8,
+              boxShadow: `0 4px 12px ${COLORS.accent}33`, cursor: "pointer",
+            }}>
               <Plus size={16} /> Create Cycle
             </button>
           )}
         </div>
 
-        {/* Global Summary */}
+        {/* Summary bar */}
         <div style={{ display: "flex", gap: 16, padding: "16px", background: `${COLORS.accent}08`, borderRadius: 16, border: `1px dashed ${COLORS.accent}40` }}>
-           <div style={{ width: 32, height: 32, borderRadius: 8, background: COLORS.accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Zap size={16} color="#fff" />
-           </div>
-           <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.accent }}>Cycle Intelligence</div>
-              <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>
-                Currently <b>{(Array.isArray(cycles) ? cycles : []).filter(c => c.status === 'active').length} active</b> modules and <b>{(Array.isArray(cycles) ? cycles : []).filter(c => c.status === 'upcoming').length} scheduled</b> windows detected.
-              </div>
-           </div>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: COLORS.accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Zap size={16} color="#fff" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.accent }}>Cycle Overview</div>
+            <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>
+              <b>{cycles.filter(c => c.status === 'active').length} active</b> · <b>{cycles.filter(c => c.status === 'pending').length} pending</b> · <b>{cycles.filter(c => c.status === 'closed').length} closed</b>
+            </div>
+          </div>
         </div>
 
         {/* Cycle List */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          {(Array.isArray(cycles) ? cycles : []).map((cycle) => (
-            <div key={cycle.id} style={{
-              background: COLORS.card, border: `1.5px solid ${COLORS.border}`,
-              borderRadius: 20, padding: 24, display: "flex", flexDirection: "column", gap: 20,
-              boxShadow: "0 1px 3px rgba(0,0,0,0.04)", position: "relative",
-            }}>
-              <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 4, background: cycle.status === 'active' ? COLORS.emerald : (cycle.status === 'upcoming' ? COLORS.accent : COLORS.muted), borderTopLeftRadius: 20, borderBottomLeftRadius: 20 }} />
-              
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <h2 style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>{cycle.name}</h2>
-                    <div style={{
-                      padding: "4px 10px", borderRadius: 6,
-                      background: cycle.status === 'active' ? `${COLORS.emerald}12` : (cycle.status === 'upcoming' ? `${COLORS.accent}12` : `${COLORS.muted}12`),
-                      color: cycle.status === 'active' ? COLORS.emerald : (cycle.status === 'upcoming' ? COLORS.accent : COLORS.muted),
-                      fontSize: 11, fontWeight: 700, textTransform: "uppercase",
-                    }}>
-                      {cycle.status}
+          {cycles.map((cycle) => {
+            const completion = cycle.total_forms > 0
+              ? Math.round((cycle.submitted_forms / cycle.total_forms) * 100) : 0;
+            const statusColor = cycle.status === 'active' ? COLORS.emerald : cycle.status === 'closed' ? COLORS.muted : COLORS.amber;
+            return (
+              <div key={cycle.id} style={{
+                background: COLORS.card, border: `1.5px solid ${COLORS.border}`,
+                borderRadius: 20, padding: 24, display: "flex", flexDirection: "column", gap: 20,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.04)", position: "relative",
+              }}>
+                <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 4, background: statusColor, borderTopLeftRadius: 20, borderBottomLeftRadius: 20 }} />
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <h2 style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>{cycle.cycle_name}</h2>
+                      <div style={{
+                        padding: "4px 10px", borderRadius: 6,
+                        background: `${statusColor}15`, color: statusColor,
+                        fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+                      }}>{cycle.status}</div>
+                      <div style={{
+                        padding: "4px 10px", borderRadius: 6,
+                        background: COLORS.bg, color: COLORS.muted,
+                        fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+                      }}>{(cycle.cycle_type || '').replace('_', ' ')}</div>
                     </div>
-                    <div style={{
-                      padding: "4px 10px", borderRadius: 6,
-                      background: COLORS.bg, color: COLORS.muted,
-                      fontSize: 11, fontWeight: 700, textTransform: "uppercase",
-                    }}>
-                      {cycle.track.replace('_', ' ')}
+                    <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: COLORS.muted }}>
+                        <Calendar size={13} /> {formatDate(cycle.start_date)} — {formatDate(cycle.end_date)}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: COLORS.muted }}>
+                        <Clock size={13} /> Self review by: <b>{formatDate(cycle.self_review_deadline)}</b>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: COLORS.muted }}>
+                        <Users size={13} /> Forms: <b>{cycle.submitted_forms}/{cycle.total_forms}</b>
+                      </div>
                     </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 4 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: COLORS.muted }}>
-                      <Calendar size={14} /> Period: <b>{formatDate(cycle.period_start)} - {formatDate(cycle.period_end)}</b>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: COLORS.muted }}>
-                      <Zap size={14} /> Execution: <b>{formatDate(cycle.trigger_date)}</b>
-                    </div>
+
+                  <div style={{ display: "flex", gap: 10 }}>
+                    {currentUser?.role === 'admin' && cycle.status === 'pending' && (
+                      <button onClick={() => handleTrigger(cycle.id)} style={{
+                        background: COLORS.accent, border: "none", padding: "8px 16px",
+                        borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer",
+                      }}>Trigger Cycle</button>
+                    )}
+                    {currentUser?.role === 'admin' && cycle.status === 'active' && (
+                      <button onClick={() => handleClose(cycle.id)} style={{
+                        background: COLORS.rose, border: "none", padding: "8px 16px",
+                        borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer",
+                      }}>Close Cycle</button>
+                    )}
                   </div>
                 </div>
 
-                <div style={{ display: "flex", gap: 10 }}>
-                  {currentUser?.role === 'admin' && cycle.status === 'upcoming' && (
-                    <button onClick={() => handleUpdateStatus(cycle.id, 'active')}
-                      style={{ background: COLORS.accent, border: "none", padding: "8px 16px", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                      Activate Cycle
-                    </button>
-                  )}
-                  {currentUser?.role === 'admin' && cycle.status === 'active' && (
-                    <button onClick={() => handleUpdateStatus(cycle.id, 'closed')}
-                      style={{ background: COLORS.rose, border: "none", padding: "8px 16px", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                      Shutdown Cycle
-                    </button>
-                  )}
-                  <button style={{ background: COLORS.bg, border: `1.5px solid ${COLORS.border}`, padding: "8px 16px", borderRadius: 10, color: COLORS.text, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                    View Metrics
-                  </button>
-                </div>
+                {/* Progress bar */}
+                {cycle.total_forms > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 700 }}>
+                      <span style={{ color: COLORS.muted }}>SUBMISSION PROGRESS</span>
+                      <span style={{ color: COLORS.text }}>{completion}%</span>
+                    </div>
+                    <div style={{ width: "100%", height: 6, background: COLORS.bg, borderRadius: 10, overflow: "hidden" }}>
+                      <div style={{ width: `${completion}%`, height: "100%", background: COLORS.accent, borderRadius: 10, transition: "width 0.8s ease" }} />
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
 
-          {cycles.length === 0 && !loading && (
+          {cycles.length === 0 && (
             <div style={{ border: `2px dashed ${COLORS.border}`, borderRadius: 20, padding: 64, textAlign: "center", color: COLORS.subtle }}>
-               No review orchestration windows defined.
+              No review cycles found. Create one to get started.
             </div>
           )}
         </div>
 
         {showModal && (
-          <CycleModal 
-            onClose={() => setShowModal(false)} 
-            onSuccess={() => { loadCycles(); setShowModal(false); }} 
+          <CycleModal
+            onClose={() => setShowModal(false)}
+            onSuccess={() => { loadCycles(); setShowModal(false); }}
           />
         )}
       </div>
@@ -194,102 +203,62 @@ export default function Cycles() {
 
 function CycleModal({ onClose, onSuccess }) {
   const [formData, setFormData] = useState({
-    name: '',
-    track: 'bi_annual',
-    period_start: '',
-    period_end: '',
-    trigger_date: '',
-    close_date: '',
-    status: 'upcoming'
+    cycle_name: '', cycle_type: 'quarterly',
+    start_date: '', end_date: '',
+    self_review_deadline: '', manager_review_deadline: '',
   });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       await cycleService.create(formData);
-      toast.success('Review cycle commissioned');
+      toast.success('Review cycle created');
       onSuccess();
-    } catch (error) {
-      toast.error('Commissioning failed');
+    } catch {
+      toast.error('Failed to create cycle');
     }
   };
 
+  const field = (label, key, type = "text", opts = {}) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>{label}</label>
+      <input type={type} value={formData[key]} onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+        style={{ padding: "10px 14px", border: `1.5px solid ${COLORS.border}`, borderRadius: 10, fontSize: 13, outline: "none" }}
+        required {...opts} />
+    </div>
+  );
+
   return (
-    <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
-      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
-      fontFamily: "'DM Sans', sans-serif",
-    }}>
-      <div style={{
-        background: COLORS.surface, borderRadius: 20, padding: 32,
-        width: "100%", maxWidth: 480, display: "flex", flexDirection: "column", gap: 24,
-        boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
-      }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+      <div style={{ background: COLORS.surface, borderRadius: 20, padding: 32, width: "100%", maxWidth: 480, display: "flex", flexDirection: "column", gap: 24, boxShadow: "0 20px 50px rgba(0,0,0,0.2)" }}>
         <div>
-          <h3 style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>Commission Review Window</h3>
-          <p style={{ fontSize: 13, color: COLORS.muted, marginTop: 4 }}>Define performance monitoring periods and automated triggers</p>
+          <h3 style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>Create Review Cycle</h3>
+          <p style={{ fontSize: 13, color: COLORS.muted, marginTop: 4 }}>Define a new performance evaluation window</p>
         </div>
-
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {field("Cycle Name", "cycle_name", "text", { placeholder: "e.g. Q2 2026 Performance Review" })}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>Cycle Identity</label>
-            <input type="text" placeholder="e.g. H1 2026 Strategy Review" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              style={{ padding: "10px 14px", border: `1.5px solid ${COLORS.border}`, borderRadius: 10, fontSize: 13, outline: "none" }} required />
+            <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>Cycle Type</label>
+            <select value={formData.cycle_type} onChange={(e) => setFormData({ ...formData, cycle_type: e.target.value })}
+              style={{ padding: "10px 14px", border: `1.5px solid ${COLORS.border}`, borderRadius: 10, fontSize: 13, outline: "none", background: "#fff" }}>
+              <option value="quarterly">Quarterly</option>
+              <option value="bi_annual">Bi-Annual</option>
+            </select>
           </div>
-
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-               <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>Orchestration Track</label>
-               <select value={formData.track} onChange={(e) => setFormData({ ...formData, track: e.target.value })}
-                 style={{ padding: "10px 14px", border: `1.5px solid ${COLORS.border}`, borderRadius: 10, fontSize: 13, outline: "none", background: "#fff" }}>
-                 <option value="bi_annual">Bi-Annual</option>
-                 <option value="quarterly">Quarterly</option>
-               </select>
-             </div>
-             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-               <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>Initial Status</label>
-               <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                 style={{ padding: "10px 14px", border: `1.5px solid ${COLORS.border}`, borderRadius: 10, fontSize: 13, outline: "none", background: "#fff" }}>
-                 <option value="upcoming">Upcoming</option>
-                 <option value="active">Active</option>
-               </select>
-             </div>
+            {field("Start Date", "start_date", "date")}
+            {field("End Date", "end_date", "date")}
           </div>
-
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>Period Start</label>
-                <input type="date" value={formData.period_start} onChange={(e) => setFormData({ ...formData, period_start: e.target.value })}
-                  style={{ padding: "10px 14px", border: `1.5px solid ${COLORS.border}`, borderRadius: 10, fontSize: 13, outline: "none" }} required />
-             </div>
-             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>Period End</label>
-                <input type="date" value={formData.period_end} onChange={(e) => setFormData({ ...formData, period_end: e.target.value })}
-                  style={{ padding: "10px 14px", border: `1.5px solid ${COLORS.border}`, borderRadius: 10, fontSize: 13, outline: "none" }} required />
-             </div>
+            {field("Self Review Deadline", "self_review_deadline", "date")}
+            {field("Manager Review Deadline", "manager_review_deadline", "date")}
           </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>Trigger Date</label>
-                <input type="date" value={formData.trigger_date} onChange={(e) => setFormData({ ...formData, trigger_date: e.target.value })}
-                  style={{ padding: "10px 14px", border: `1.5px solid ${COLORS.border}`, borderRadius: 10, fontSize: 13, outline: "none" }} required />
-             </div>
-             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>Close Date</label>
-                <input type="date" value={formData.close_date} onChange={(e) => setFormData({ ...formData, close_date: e.target.value })}
-                  style={{ padding: "10px 14px", border: `1.5px solid ${COLORS.border}`, borderRadius: 10, fontSize: 13, outline: "none" }} required />
-             </div>
-          </div>
-
-          <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
-            <button type="button" onClick={onClose}
-              style={{ flex: 1, padding: "12px", borderRadius: 11, border: `1.5px solid ${COLORS.border}`, background: "#fff", color: COLORS.muted, fontWeight: 700, cursor: "pointer" }}>
-              Dismiss
+          <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+            <button type="button" onClick={onClose} style={{ flex: 1, padding: "12px", borderRadius: 11, border: `1.5px solid ${COLORS.border}`, background: "#fff", color: COLORS.muted, fontWeight: 700, cursor: "pointer" }}>
+              Cancel
             </button>
-            <button type="submit"
-              style={{ flex: 2, padding: "12px", borderRadius: 11, border: "none", background: COLORS.accent, color: "#fff", fontWeight: 700, cursor: "pointer" }}>
-              Validate & Deploy
+            <button type="submit" style={{ flex: 2, padding: "12px", borderRadius: 11, border: "none", background: COLORS.accent, color: "#fff", fontWeight: 700, cursor: "pointer" }}>
+              Create Cycle
             </button>
           </div>
         </form>

@@ -55,8 +55,8 @@ export default function PerformanceReview() {
     </Layout>
   );
 
-  const pendingSelf = forms.filter(f => f.form_type === 'self' && f.status === 'pending');
-  const pendingManager = forms.filter(f => f.form_type === 'manager' && f.status === 'pending');
+  const pendingSelf = forms.filter(f => f.form_type === 'SELF_ASSESSMENT' && f.status !== 'submitted');
+  const pendingManager = forms.filter(f => f.form_type === 'MANAGER_FEEDBACK' && f.status !== 'submitted');
   const submitted = forms.filter(f => f.status === 'submitted');
 
   return (
@@ -125,7 +125,7 @@ export default function PerformanceReview() {
 }
 
 function FeedbackCard({ form, isAction }) {
-  const isSelf = form.form_type === 'self';
+  const isSelf = form.form_type === 'SELF_ASSESSMENT';
   
   return (
     <div style={{
@@ -145,7 +145,7 @@ function FeedbackCard({ form, isAction }) {
           </div>
           <div>
             <h3 style={{ fontSize: 15, fontWeight: 800, color: COLORS.text }}>
-              {isSelf ? 'Self-Review Reflection' : `Review: ${form.employee?.name}`}
+              {isSelf ? 'Self-Review Reflection' : 'Manager Review'}
             </h3>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>{form.context} Track</span>

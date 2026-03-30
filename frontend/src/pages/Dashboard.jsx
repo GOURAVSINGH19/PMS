@@ -124,22 +124,19 @@ export default function Dashboard() {
     try {
       const fetchProbationSafely = async () => {
         try {
-          const res = await probationService.getMe();
+          const res = await probationService.getMe(currentUser.id);
           return res.data;
         } catch (e) {
-          if (e.response?.status === 404) return null;
           return null;
         }
-    };
+      };
 
       if (currentUser?.role === 'admin') {
-        const [adminRes, automationRes, notificationsRes] = await Promise.all([
-          adminService.getDashboard(),
-          adminService.getAutomationStatus(),
+        const [adminRes, notificationsRes] = await Promise.all([
+          adminService.getDashboard().catch(() => ({ data: {} })),
           notificationService.getAll().catch(() => ({ data: [] }))
         ]);
         setAdminData(adminRes.data);
-        setAutomation(automationRes.data);
         setNotifications(notificationsRes.data || []);
       } else if (currentUser?.role === 'manager') {
         const [goalsRes, notificationsRes, performanceRes, probationRes] = await Promise.all([
@@ -183,12 +180,18 @@ export default function Dashboard() {
     };
 
     if (currentUser?.role === 'admin' && adminData) {
+      const totalGoals = adminData.total_goals || 0;
+      const completedGoals = adminData.completed_goals || 0;
+      const orgPerf = totalGoals > 0 ? Math.round((completedGoals / totalGoals) * 100) : 0;
       return {
         ...defaultStats,
-        orgPerformance: adminData.overview?.org_performance || 0,
-        pendingSubmissions: (adminData.feedback?.total_forms || 0) - (adminData.feedback?.submitted || 0),
-        openFlags: (adminData.flags?.open || 0) + (adminData.flags?.escalated || 0),
-        criticalAlerts: (adminData.probation?.no_manager_assigned || 0) + (adminData.goals?.stalled_approvals || 0)
+        orgPerformance: orgPerf,
+        pendingSubmissions: adminData.open_review_cycles || 0,
+        openFlags: adminData.pending_escalations || 0,
+        criticalAlerts: adminData.probation_in_progress || 0,
+        totalEmployees: adminData.total_employees || 0,
+        activeGoals: adminData.active_goals || 0,
+        atRisk: adminData.at_risk_goals || 0,
       };
     }
 
@@ -240,9 +243,9 @@ export default function Dashboard() {
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24 }}>
             <StatCard label="Org Performance" value={`${stats.orgPerformance}%`} icon={TrendingUp} color={COLORS.accent} trend="up" trendValue="Global Avg" />
-            <StatCard label="Pending Submissions" value={stats.pendingSubmissions} icon={MessageSquare} color={COLORS.amber} trend="down" trendValue="Forms" to="/performance" />
-            <StatCard label="Open Flags" value={stats.openFlags} icon={Flag} color={COLORS.rose} trend="up" trendValue="Requires Review" to="/notifications" />
-            <StatCard label="System Alerts" value={stats.criticalAlerts} icon={AlertTriangle} color={COLORS.rose} trend="up" trendValue="Critical" to="/notifications" />
+            <StatCard label="Open Review Cycles" value={stats.pendingSubmissions} icon={MessageSquare} color={COLORS.amber} trendValue="Cycles" to="/cycles" />
+            <StatCard label="Open Flags" value={stats.openFlags} icon={Flag} color={COLORS.rose} trendValue="Requires Review" to="/flags" />
+            <StatCard label="Probation Active" value={stats.criticalAlerts} icon={AlertTriangle} color={COLORS.violet} trendValue="In Progress" to="/probation" />
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 24 }}>
@@ -266,7 +269,7 @@ export default function Dashboard() {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                     <div style={{ padding: "16px", border: `1px solid ${COLORS.border}`, borderRadius: 16 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, marginBottom: 8 }}>PROBATION TRACK</div>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>{adminData?.probation?.active || 0} <span style={{ fontSize: 12, color: COLORS.muted, fontWeight: 500 }}>Active</span></div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>{adminData?.probation_in_progress || 0} <span style={{ fontSize: 12, color: COLORS.muted, fontWeight: 500 }}>Active</span></div>
                     </div>
                   </div>
                 </div>
@@ -279,15 +282,15 @@ export default function Dashboard() {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
                   <div style={{ padding: "20px", background: `${COLORS.accent}08`, borderRadius: 18, border: `1px solid ${COLORS.accent}15` }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.accent, marginBottom: 8 }}>COMPANY</div>
-                    <div style={{ fontSize: 24, fontWeight: 900, color: COLORS.text }}>{adminData?.goals?.distribution?.company || 0}</div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: COLORS.text }}>{adminData?.total_goals || 0}</div>
                   </div>
                   <div style={{ padding: "20px", background: `${COLORS.violet}08`, borderRadius: 18, border: `1px solid ${COLORS.violet}15` }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.violet, marginBottom: 8 }}>TEAM</div>
-                    <div style={{ fontSize: 24, fontWeight: 900, color: COLORS.text }}>{adminData?.goals?.distribution?.team || 0}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.violet, marginBottom: 8 }}>ACTIVE</div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: COLORS.text }}>{adminData?.active_goals || 0}</div>
                   </div>
                   <div style={{ padding: "20px", background: `${COLORS.emerald}08`, borderRadius: 18, border: `1px solid ${COLORS.emerald}15` }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.emerald, marginBottom: 8 }}>INDIVIDUAL</div>
-                    <div style={{ fontSize: 24, fontWeight: 900, color: COLORS.text }}>{adminData?.goals?.distribution?.individual || 0}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.emerald, marginBottom: 8 }}>COMPLETED</div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: COLORS.text }}>{adminData?.completed_goals || 0}</div>
                   </div>
                 </div>
               </div>
@@ -300,11 +303,11 @@ export default function Dashboard() {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <div style={{ padding: "14px 18px", background: `${COLORS.rose}08`, borderRadius: 16, border: `1px solid ${COLORS.rose}15`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.rose }}>Aging Flags ({adminData?.flags?.aging_gt_5_days || 0})</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.rose }}>Pending Escalations ({adminData?.pending_escalations || 0})</div>
                     <AlertTriangle size={16} color={COLORS.rose} />
                   </div>
                   <div style={{ padding: "14px 18px", background: `${COLORS.amber}08`, borderRadius: 16, border: `1px solid ${COLORS.amber}15`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.amber }}>Stalled Approvals ({adminData?.goals?.stalled_approvals || 0})</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.amber }}>At Risk Goals ({adminData?.at_risk_goals || 0})</div>
                     <Clock size={16} color={COLORS.amber} />
                   </div>
                 </div>
@@ -316,14 +319,14 @@ export default function Dashboard() {
                  </div>
                  <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                       <span style={{ fontSize: 13, color: COLORS.muted }}>Trigger Success</span>
-                       <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.emerald }}>{automation?.triggers?.success_rate || 0}%</span>
+                       <span style={{ fontSize: 13, color: COLORS.muted }}>Goal Completion</span>
+                       <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.emerald }}>{stats.orgPerformance}%</span>
                     </div>
-                    <ProgressBar progress={automation?.triggers?.success_rate || 0} color={COLORS.emerald} />
+                    <ProgressBar progress={stats.orgPerformance} color={COLORS.emerald} />
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                        <div style={{ padding: "12px", background: COLORS.bg, borderRadius: 12, textAlign: "center" }}>
-                          <div style={{ fontSize: 10, color: COLORS.muted, marginBottom: 4 }}>SIGNALS (24H)</div>
-                          <div style={{ fontSize: 16, fontWeight: 800 }}>{automation?.signals?.volume_24h || 0}</div>
+                          <div style={{ fontSize: 10, color: COLORS.muted, marginBottom: 4 }}>TOTAL EMPLOYEES</div>
+                          <div style={{ fontSize: 16, fontWeight: 800 }}>{adminData?.total_employees || 0}</div>
                        </div>
                     </div>
                  </div>

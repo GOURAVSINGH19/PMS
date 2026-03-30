@@ -83,20 +83,57 @@ class RedFlagEngine:
         return db.query(ReviewForm).filter(
             ReviewForm.is_flagged >= 2
         ).order_by(ReviewForm.submitted_at.desc()).offset(skip).limit(limit).all()
-    
-    def resolve_flag(self, db: Session, form_id: int, admin_id: int) -> ReviewForm:
+
+    def get_admin_triage_queue(self, db: Session, include_soft_flags: bool = False):
+        """Get enriched flagged forms for admin triage queue"""
+        from datetime import datetime
+        from app.models.user import User
+        min_severity = 1 if include_soft_flags else 2
+        forms = db.query(ReviewForm).filter(
+            ReviewForm.is_flagged >= min_severity,
+            ReviewForm.flag_reviewed_at == None
+        ).order_by(ReviewForm.submitted_at.desc()).all()
+        result = []
+        for form in forms:
+            employee = db.query(User).filter(User.id == form.employee_id).first()
+            age_days = (datetime.utcnow() - form.created_at).days if form.created_at else 0
+            result.append({
+                "form_id": form.id,
+                "employee_id": form.employee_id,
+                "employee_name": employee.name if employee else "Unknown",
+                "form_type": form.form_type.value if form.form_type else None,
+                "severity": form.is_flagged,
+                "flag_reason": form.flag_reason,
+                "rating": form.final_rating,
+                "submitted_at": form.submitted_at.isoformat() if form.submitted_at else None,
+                "age_days": age_days,
+                "cycle_id": form.review_cycle_id,
+            })
+        return result
+
+    def mark_flag_reviewed(self, db: Session, form_id: int, admin_id: int, notes: str = None) -> ReviewForm:
         """Mark a flag as reviewed by admin"""
         from datetime import datetime
-        
         form = db.query(ReviewForm).filter(ReviewForm.id == form_id).first()
         if not form:
             raise ValueError("Form not found")
-        
         form.flag_reviewed_at = datetime.utcnow()
         form.flag_reviewed_by = admin_id
         db.commit()
         db.refresh(form)
         return form
+
+    def get_flag_statistics(self, db: Session):
+        """Get overall flag statistics"""
+        total = db.query(ReviewForm).filter(ReviewForm.is_flagged >= 1).count()
+        open_flags = db.query(ReviewForm).filter(ReviewForm.is_flagged >= 2, ReviewForm.flag_reviewed_at == None).count()
+        resolved = db.query(ReviewForm).filter(ReviewForm.is_flagged >= 1, ReviewForm.flag_reviewed_at != None).count()
+        critical = db.query(ReviewForm).filter(ReviewForm.is_flagged == 3).count()
+        return {"total": total, "open": open_flags, "resolved": resolved, "critical": critical}
+
+    def resolve_flag(self, db: Session, form_id: int, admin_id: int) -> ReviewForm:
+        """Mark a flag as reviewed by admin"""
+        return self.mark_flag_reviewed(db, form_id, admin_id)
 
 
 red_flag_engine = RedFlagEngine()

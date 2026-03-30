@@ -24,21 +24,22 @@ export const API_ENDPOINTS = {
     BY_ID: id => `/teams/${id}`,
   },
   CYCLES: {
-    BASE: '/cycles/',
-    BY_ID: id => `/cycles/${id}`,
-    STATUS: id => `/cycles/${id}/status`,
-    ENROLLMENTS: id => `/cycles/${id}/enrollments`,
+    BASE: '/review-cycles/',
+    BY_ID: id => `/review-cycles/${id}`,
+    TRIGGER: id => `/review-cycles/${id}/trigger`,
+    CLOSE: id => `/review-cycles/${id}/close`,
+    COMPLIANCE: id => `/review-cycles/${id}/compliance`,
   },
   FEEDBACK: {
-    BASE: '/feedback/',
-    BY_ID: id => `/feedback/${id}`,
-    SUBMIT: id => `/feedback/${id}/submit`,
-    FLAGS: '/feedback/flags/queue',
-    FLAG_DETAIL: id => `/feedback/flags/${id}`,
+    BASE: '/review-forms/',
+    BY_ID: id => `/review-forms/${id}`,
+    SUBMIT: id => `/review-forms/${id}/submit`,
+    FLAGS: '/admin/flags/triage',
+    FLAG_DETAIL: id => `/admin/flags/${id}/review`,
   },
   PROBATION: {
     BASE: '/probation/',
-    ME: '/probation/me',
+    ME: (userId) => `/probation/employee/${userId}`,
     BY_ID: id => `/probation/${id}`,
   },
   NOTIFICATIONS: {
@@ -48,12 +49,13 @@ export const API_ENDPOINTS = {
     UNREAD_COUNT: '/notifications/unread-count',
   },
   ADMIN: {
-    DASHBOARD: '/admin/dashboard',
-    AUTOMATION: '/admin/automation-status',
-    STALLED: '/admin/stalled-approvals',
-    AGING_FLAGS: '/admin/flags/aging',
-    NO_MANAGER: '/admin/no-manager',
-    COMPLIANCE: (id) => `/admin/cycle-compliance?cycle_id=${id}`,
+    DASHBOARD: '/dashboard/company',
+    AUTOMATION: '/dashboard/company',
+    FLAGS_TRIAGE: '/admin/flags/triage',
+    FLAGS_STATS: '/admin/flags/statistics',
+    REPORTS_GOALS: '/admin/reports/goals',
+    REPORTS_PROBATION: '/admin/reports/probation',
+    REPORTS_REVIEWS: '/admin/reports/reviews',
   }
 };
 

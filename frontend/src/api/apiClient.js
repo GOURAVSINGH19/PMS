@@ -5,8 +5,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json'
   },
-  withCredentials: true,
-  maxRedirects: 0
+  withCredentials: false
 });
 
 api.interceptors.request.use((config) => {

@@ -126,10 +126,9 @@ export default function FeedbackFlags() {
                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <User size={14} color={COLORS.muted} />
-                          <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.muted }}>Owner: {flag.owner?.name}</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.muted }}>Employee #{flag.assignee_id}</span>
                           <span style={{ fontSize: 12, color: COLORS.subtle }}>·</span>
-                          <Briefcase size={14} color={COLORS.muted} />
-                          <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.muted }}>{flag.owner?.department}</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.muted }}>{flag.level}</span>
                        </div>
                       <div style={{ display: "flex", gap: 8 }}>
                          <button style={{ background: "none", border: `1px solid ${COLORS.border}`, padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 700, color: COLORS.muted, cursor: "pointer" }}>Dismiss</button>

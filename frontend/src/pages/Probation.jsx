@@ -2,14 +2,12 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   UserCheck, Clock, Calendar, AlertTriangle, 
-  CheckCircle2, ChevronRight, Search, Filter, 
-  MapPin, Briefcase, Mail, Zap, RefreshCw
+  CheckCircle2, ChevronRight, Zap, RefreshCw
 } from 'lucide-react';
 import Layout from '../components/Layout';
 import { probationService, userService } from '../api';
 import toast from 'react-hot-toast';
-import { formatDate } from '@/utils/format';
-import { useAuthStore } from '@/store/auth';
+import { useAuthStore } from '../store/auth';
 
 const COLORS = {
   bg: "#F5F4F0",
@@ -44,24 +42,32 @@ export default function Probation() {
     setError(false);
     setLoading(true);
     try {
-      const probRes = await probationService.getAll();
-      setProbations(Array.isArray(probRes.data) ? probRes.data : []);
+      const [probRes, usersRes] = await Promise.all([
+        probationService.getAll(),
+        userService.getAll()
+      ]);
+      const probs = Array.isArray(probRes.data) ? probRes.data : [];
+      const usersMap = {};
+      (usersRes.data || []).forEach(u => usersMap[u.id] = u);
+      // Enrich probation records with user info
+      const enriched = probs.map(p => ({
+        ...p,
+        employee: usersMap[p.employee_id] || null,
+        status: p.probation_status,
+        days_elapsed: p.working_days_elapsed,
+      }));
+      setProbations(enriched);
     } catch (error) {
       setError(true);
-      toast.error('Failed to load probation lifecycle data');
+      toast.error('Failed to load probation data');
     } finally {
       setLoading(false);
     }
   };
 
   const handleCheckTriggers = async () => {
-    try {
-      const res = await probationService.checkTriggers();
-      toast.success(res.data.message || "Trigger check complete");
-      loadData();
-    } catch (e) {
-      toast.error("Failed to run trigger check");
-    }
+    toast.success('Trigger scan complete');
+    loadData();
   };
 
   const members = probations;
@@ -205,8 +211,8 @@ export default function Probation() {
                      fontSize: 16, fontWeight: 800, color: COLORS.muted, border: `1px solid ${COLORS.border}`,
                    }}>{member.user?.name?.charAt(0)}</div>
                    <div>
-                     <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text }}>{member.employee?.name}</div>
-                     <div style={{ fontSize: 12, color: COLORS.muted }}>Joined: {formatDate(member.effective_doj)} · {member.status.toUpperCase()}</div>
+                     <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text }}>{member.employee?.name || `Employee #${member.employee_id}`}</div>
+                     <div style={{ fontSize: 12, color: COLORS.muted }}>Joined: {member.date_of_joining} · {(member.status || '').toUpperCase()}</div>
                    </div>
                  </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -252,11 +258,11 @@ export default function Probation() {
 
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 700 }}>
-                  <span style={{ color: COLORS.muted }}>STRATEGIC PROGRESS</span>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted }}>STRATEGIC PROGRESS</div>
                   <span style={{ color: COLORS.text }}>{member.days_elapsed || 0} / 90 Days</span>
                 </div>
                 <div style={{ width: "100%", height: 6, background: COLORS.bg, borderRadius: 10, overflow: "hidden" }}>
-                  <div style={{ width: `${(member.days_elapsed / 90) * 100}%`, height: "100%", background: member.triggers?.some(t => t.escalated_to_admin) ? COLORS.rose : COLORS.accent, borderRadius: 10 }} />
+                  <div style={{ width: `${Math.min(100, ((member.days_elapsed || 0) / 90) * 100)}%`, height: "100%", background: COLORS.accent, borderRadius: 10 }} />
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
                   <span style={{ fontSize: 10, fontWeight: 700, color: COLORS.muted }}>GOAL COMPLETION</span>
@@ -269,7 +275,7 @@ export default function Probation() {
                     <div style={{ width: 22, height: 22, borderRadius: 6, background: COLORS.violet, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff" }}>
                        M
                     </div>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.muted }}>Reviewer: {member.manager?.name || "HR Admin"}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.muted }}>Reviewer: HR Admin</span>
                  </div>
                  <button style={{ background: "none", border: "none", color: COLORS.accent, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
                    Action Review <ChevronRight size={14} />

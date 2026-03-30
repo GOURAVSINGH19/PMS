@@ -14,7 +14,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api/v1': {
-        target: 'http://localhost:8003',
+        target: 'http://gms-backend:8000',
         changeOrigin: true,
       }
     }

@@ -61,9 +61,8 @@ export default function FeedbackForm() {
     setSubmitting(true);
     try {
       const data = {
-        responses,
-        rating,
-        overall_score: calculateScore(responses)
+        form_data: { ...responses, rating },
+        final_rating: Math.round(parseFloat(calculateScore(responses))) || null
       };
       await feedbackService.submitForm(id, data);
       toast.success('Strategy feedback submitted');
@@ -90,8 +89,10 @@ export default function FeedbackForm() {
     </Layout>
   );
 
-  const isSelf = form.form_type === 'self';
-  const isSubmitted = form.status === 'submitted';
+  const isSelf = form?.form_type === 'SELF_ASSESSMENT';
+  const isSubmitted = form?.status === 'submitted';
+
+  if (!form) return null;
 
   return (
     <Layout>

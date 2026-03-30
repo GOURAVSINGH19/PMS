@@ -56,15 +56,15 @@ export default function Login() {
       };
       setAuth(response.access_token, user);
       toast.success('Login successful!');
-      navigate('/');
+      window.location.href = '/';
     } catch (error) {
+      console.error('Login error full:', error);
       const detail = error.response?.data?.detail;
-      if (Array.isArray(detail)) {
-        setError(detail.map(d => d.msg || d.message || JSON.stringify(d)).join(', '));
-      } else {
-        setError(detail || error.message || 'Login failed. Please check your credentials.');
-      }
-      toast.error('Login failed');
+      const msg = Array.isArray(detail)
+        ? detail.map(d => d.msg || JSON.stringify(d)).join(', ')
+        : detail || error.message || 'Login failed';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

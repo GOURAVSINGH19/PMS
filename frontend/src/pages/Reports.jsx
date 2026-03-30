@@ -1,50 +1,39 @@
 import { useEffect, useState } from 'react';
-import { 
-  FileText, Download, TrendingUp, Users, Target, Shield, 
-  ChevronRight, Calendar, Filter, Zap, Activity, Briefcase,
-  BarChart2, PieChart as PieChartIcon, AlertTriangle
-} from 'lucide-react';
+import { FileText, Download, TrendingUp, Users, Target, Shield, Filter, Activity, AlertTriangle } from 'lucide-react';
 import Layout from '../components/Layout';
+import { adminService } from '../api';
 import toast from 'react-hot-toast';
 
 const COLORS = {
-  bg: "#F5F4F0",
-  surface: "#FFFFFF",
-  card: "#FFFFFF",
-  border: "#E4E2DC",
-  accent: "#2563EB",
-  accentDim: "#1D4ED8",
-  emerald: "#059669",
-  amber: "#D97706",
-  rose: "#DC2626",
-  violet: "#7C3AED",
-  text: "#111111",
-  muted: "#6B7280",
-  subtle: "#9CA3AF",
+  bg: "#F5F4F0", surface: "#FFFFFF", card: "#FFFFFF", border: "#E4E2DC",
+  accent: "#2563EB", emerald: "#059669", amber: "#D97706", rose: "#DC2626",
+  violet: "#7C3AED", text: "#111111", muted: "#6B7280", subtle: "#9CA3AF",
 };
 
-
-
 export default function Reports() {
+  const [goalsData, setGoalsData] = useState({ data: [], total: 0 });
+  const [probationData, setProbationData] = useState({ data: [], total: 0 });
+  const [reviewsData, setReviewsData] = useState({ data: [], total: 0 });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 500);
-    return () => clearTimeout(timer);
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
-  const orgPerformance = [
-    { name: "Jan", execution: 45, compliance: 88, risk: 12 },
-    { name: "Feb", execution: 52, compliance: 92, risk: 8 },
-    { name: "Mar", execution: 68, compliance: 95, risk: 5 },
-  ];
-
-  const distribution = [
-    { name: 'Exceeding', value: 24, color: COLORS.emerald },
-    { name: 'On Track', value: 58, color: COLORS.accent },
-    { name: 'Below Target', value: 12, color: COLORS.amber },
-    { name: 'At Risk', value: 6, color: COLORS.rose },
-  ];
+  const loadData = async () => {
+    try {
+      const [g, p, r] = await Promise.all([
+        adminService.getReportsGoals(),
+        adminService.getReportsProbation(),
+        adminService.getReportsReviews(),
+      ]);
+      setGoalsData(g.data);
+      setProbationData(p.data);
+      setReviewsData(r.data);
+    } catch {
+      toast.error('Failed to load reports');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (loading) return (
     <Layout>
@@ -55,86 +44,134 @@ export default function Reports() {
     </Layout>
   );
 
+  const goals = goalsData.data || [];
+  const probations = probationData.data || [];
+  const reviews = reviewsData.data || [];
+
+  const activeGoals = goals.filter(g => g.status === 'active').length;
+  const completedGoals = goals.filter(g => g.status === 'scored').length;
+  const atRiskGoals = goals.filter(g => g.is_at_risk).length;
+  const activeProbations = probations.filter(p => p.status === 'in_probation').length;
+  const activeReviews = reviews.filter(r => r.status === 'active').length;
+
   return (
     <Layout>
       <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-        
-        {/* Header */}
+
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <h1 style={{ fontSize: 24, fontWeight: 800, color: COLORS.text, letterSpacing: "-0.03em" }}>Intelligence & Reports</h1>
+            <h1 style={{ fontSize: 24, fontWeight: 800, color: COLORS.text, letterSpacing: "-0.03em" }}>Reports & Analytics</h1>
             <p style={{ fontSize: 14, color: COLORS.muted, marginTop: 4 }}>Organisation-wide performance analytics and audit trails</p>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button style={{
-              background: COLORS.surface, border: `1px solid ${COLORS.border}`,
-              padding: "8px 16px", borderRadius: 10, fontSize: 13, fontWeight: 600,
-              color: COLORS.text, cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
-            }}>
-              <Filter size={14} /> Global Filters
-            </button>
-            <button style={{
-              background: COLORS.accent, border: "none",
-              padding: "8px 18px", borderRadius: 10, fontSize: 13, fontWeight: 700,
-              color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
-              boxShadow: `0 4px 12px ${COLORS.accent}33`,
-            }}>
-              <Download size={14} /> Generate Organisational PDF
-            </button>
-          </div>
         </div>
 
-        {/* Global KPI Cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
-           {[
-             { label: "Overall Organisation Health", value: "92.4%", icon: Activity, color: COLORS.emerald, desc: "Based on goal completion & feedback" },
-             { label: "Review Compliance", value: "98.1%", icon: Shield, color: COLORS.accent, desc: "On-time review submissions" },
-             { label: "At-Risk Strategic Items", value: "6", icon: AlertTriangle, color: COLORS.rose, desc: "Requires immediate intervention" },
-           ].map((stat, i) => (
-             <div key={i} style={{
-               background: COLORS.card, border: `1px solid ${COLORS.border}`,
-               borderRadius: 20, padding: 24, display: "flex", flexDirection: "column", gap: 12,
-               boxShadow: "0 1px 4px rgba(0,0,0,0.03)",
-             }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                   <div style={{ width: 40, height: 40, borderRadius: 12, background: `${stat.color}12`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <stat.icon size={20} color={stat.color} />
-                   </div>
-                   <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.emerald }}>+2.4% vs LY</span>
-                </div>
-                <div style={{ marginTop: 4 }}>
-                   <div style={{ fontSize: 28, fontWeight: 800, color: COLORS.text }}>{stat.value}</div>
-                   <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.muted }}>{stat.label}</div>
-                   <div style={{ fontSize: 11, color: COLORS.subtle, marginTop: 4 }}>{stat.desc}</div>
-                </div>
-             </div>
-           ))}
-        </div>
-
-
-
-        {/* Report Sections */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 24 }}>
+        {/* KPI Cards */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
           {[
-            { label: "Cycle Audit Log", count: "24 Logs today", detail: "Track every approval move" },
-            { label: "Goal Variance Report", count: "14 Items flagged", detail: "Identify divergent goals" },
-            { label: "Feedback Compliance", count: "98% Completed", detail: "Response rate tracking" },
-          ].map((r, i) => (
-            <div key={i} style={{
-              background: COLORS.card, border: `1px solid ${COLORS.border}`,
-              borderRadius: 16, padding: "20px 24px", display: "flex", alignItems: "center", gap: 16,
-              cursor: "pointer", transition: "background 0.2s",
-            }}>
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                 <FileText size={18} color={COLORS.muted} />
+            { label: "Total Goals", value: goals.length, icon: Target, color: COLORS.accent },
+            { label: "Active Goals", value: activeGoals, icon: Activity, color: COLORS.emerald },
+            { label: "At Risk Goals", value: atRiskGoals, icon: AlertTriangle, color: COLORS.rose },
+            { label: "Active Probations", value: activeProbations, icon: Shield, color: COLORS.amber },
+          ].map((stat, i) => (
+            <div key={i} style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: `${stat.color}12`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <stat.icon size={18} color={stat.color} />
+                </div>
               </div>
-              <div>
-                 <div style={{ fontSize: 14, fontWeight: 800, color: COLORS.text }}>{r.label}</div>
-                 <div style={{ fontSize: 12, color: COLORS.emerald, fontWeight: 600 }}>{r.count}</div>
-                 <div style={{ fontSize: 11, color: COLORS.subtle, marginTop: 1 }}>{r.detail}</div>
-              </div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: COLORS.text }}>{stat.value}</div>
+              <div style={{ fontSize: 13, color: COLORS.muted, marginTop: 4 }}>{stat.label}</div>
             </div>
           ))}
+        </div>
+
+        {/* Goals Report */}
+        <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 20, overflow: "hidden" }}>
+          <div style={{ padding: "20px 24px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+            <Target size={18} color={COLORS.accent} />
+            <span style={{ fontSize: 15, fontWeight: 800, color: COLORS.text }}>Goals Report</span>
+            <span style={{ marginLeft: "auto", fontSize: 12, color: COLORS.muted }}>{goals.length} total</span>
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: COLORS.bg }}>
+                {["Title", "Level", "Status", "Priority", "Completion", "At Risk"].map(h => (
+                  <th key={h} style={{ padding: "12px 20px", textAlign: "left", fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {goals.slice(0, 10).map(g => (
+                <tr key={g.id} style={{ borderTop: `1px solid ${COLORS.border}` }}>
+                  <td style={{ padding: "14px 20px", fontSize: 13, fontWeight: 600, color: COLORS.text }}>{g.title}</td>
+                  <td style={{ padding: "14px 20px", fontSize: 12, color: COLORS.muted, textTransform: "capitalize" }}>{g.level}</td>
+                  <td style={{ padding: "14px 20px" }}>
+                    <span style={{ padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700, background: g.status === 'active' ? `${COLORS.emerald}12` : `${COLORS.muted}12`, color: g.status === 'active' ? COLORS.emerald : COLORS.muted, textTransform: "capitalize" }}>{g.status}</span>
+                  </td>
+                  <td style={{ padding: "14px 20px", fontSize: 12, color: COLORS.muted, textTransform: "capitalize" }}>{g.priority}</td>
+                  <td style={{ padding: "14px 20px", fontSize: 13, fontWeight: 700, color: COLORS.accent }}>{g.completion_pct || 0}%</td>
+                  <td style={{ padding: "14px 20px" }}>
+                    {g.is_at_risk ? <span style={{ color: COLORS.rose, fontSize: 11, fontWeight: 700 }}>⚠ AT RISK</span> : <span style={{ color: COLORS.emerald, fontSize: 11, fontWeight: 700 }}>✓ OK</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Probation & Reviews side by side */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+
+          {/* Probation Report */}
+          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 20, overflow: "hidden" }}>
+            <div style={{ padding: "20px 24px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+              <Shield size={18} color={COLORS.amber} />
+              <span style={{ fontSize: 15, fontWeight: 800, color: COLORS.text }}>Probation Report</span>
+              <span style={{ marginLeft: "auto", fontSize: 12, color: COLORS.muted }}>{probations.length} records</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {probations.map(p => (
+                <div key={p.id} style={{ padding: "14px 20px", borderTop: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.text }}>Employee #{p.employee_id}</div>
+                    <div style={{ fontSize: 11, color: COLORS.muted }}>Joined: {p.date_of_joining}</div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                    <span style={{ padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700, background: `${COLORS.amber}12`, color: COLORS.amber, textTransform: "capitalize" }}>{p.status}</span>
+                    <span style={{ fontSize: 11, color: COLORS.muted }}>{p.triggers_count} triggers</span>
+                  </div>
+                </div>
+              ))}
+              {probations.length === 0 && <div style={{ padding: 32, textAlign: "center", color: COLORS.subtle }}>No probation records</div>}
+            </div>
+          </div>
+
+          {/* Reviews Report */}
+          <div style={{ background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 20, overflow: "hidden" }}>
+            <div style={{ padding: "20px 24px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+              <FileText size={18} color={COLORS.violet} />
+              <span style={{ fontSize: 15, fontWeight: 800, color: COLORS.text }}>Review Cycles Report</span>
+              <span style={{ marginLeft: "auto", fontSize: 12, color: COLORS.muted }}>{reviews.length} cycles</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {reviews.map(r => (
+                <div key={r.cycle_id} style={{ padding: "14px 20px", borderTop: `1px solid ${COLORS.border}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: COLORS.text }}>{r.cycle_name}</div>
+                    <span style={{ padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700, background: `${COLORS.muted}12`, color: COLORS.muted, textTransform: "capitalize" }}>{r.status}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: COLORS.muted, marginBottom: 6 }}>
+                    <span>Forms: {r.submitted_forms}/{r.total_forms}</span>
+                    <span>{r.completion_rate}% complete</span>
+                  </div>
+                  <div style={{ width: "100%", height: 4, background: COLORS.bg, borderRadius: 10 }}>
+                    <div style={{ width: `${r.completion_rate}%`, height: "100%", background: COLORS.accent, borderRadius: 10 }} />
+                  </div>
+                </div>
+              ))}
+              {reviews.length === 0 && <div style={{ padding: 32, textAlign: "center", color: COLORS.subtle }}>No review cycles</div>}
+            </div>
+          </div>
         </div>
 
       </div>
