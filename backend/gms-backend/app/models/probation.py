@@ -15,6 +15,8 @@ class ProbationRecord(Base):
     is_paused = Column(Boolean, default=False)
     pause_start_date = Column(Date, nullable=True)
     pause_resume_date = Column(Date, nullable=True)
+    recommendation = Column(String, nullable=True)  # confirm | extend | terminate | needs_improvement
+    recommendation_notes = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     employee = relationship("User", foreign_keys=[employee_id])

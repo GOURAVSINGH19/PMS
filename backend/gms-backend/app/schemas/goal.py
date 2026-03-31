@@ -33,7 +33,7 @@ class UserWithTeam(UserInfo):
 class GoalBase(BaseModel):
     title: str
     description: str
-    level: GoalLevel
+    level: GoalLevel = GoalLevel.INDIVIDUAL
     tag: GoalTag
     priority: GoalPriority
     start_date: date
@@ -42,7 +42,8 @@ class GoalBase(BaseModel):
 class GoalCreate(GoalBase):
     assignee_id: int
     parent_id: int | None = None
-    
+    subtasks: List[SubtaskCreate] = []
+
     @property
     def due_date(self) -> date:
         """Auto-calculate due date based on tag"""
@@ -63,8 +64,14 @@ class GoalCreate(GoalBase):
 class GoalUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
+    level: GoalLevel | None = None
+    tag: GoalTag | None = None
+    priority: GoalPriority | None = None
+    start_date: date | None = None
+    assignee_id: int | None = None
     weightage: float | None = None
     category: str | None = None
+    subtasks: Optional[List[SubtaskCreate]] = None
 
 class GoalSubmit(BaseModel):
     pass

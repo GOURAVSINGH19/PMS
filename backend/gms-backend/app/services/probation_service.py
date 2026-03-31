@@ -65,6 +65,37 @@ class ProbationService:
     def list_records(self, db: Session, skip: int = 0, limit: int = 100) -> List[ProbationRecord]:
         return db.query(ProbationRecord).offset(skip).limit(limit).all()
 
+    def get_probation_end_date(self, record: ProbationRecord) -> date:
+        """Standard 90-day probation from DOJ, adjusted for pause/resumes."""
+        # For now, simple DOJ + 90 days
+        return record.date_of_joining + timedelta(days=90)
+
+    def get_calculated_status(self, record: ProbationRecord) -> str:
+        """Determine granular status for tracking."""
+        if record.probation_status == ProbationStatus.COMPLETED:
+            return "Completed"
+        if record.probation_status == ProbationStatus.REJECTED:
+            return "Terminated"
+        if record.is_paused:
+            return "Paused"
+        
+        # Check triggers
+        has_overdue = any(t.status == ProbationTriggerStatus.ESCALATED for t in record.triggers)
+        if has_overdue:
+            return "Overdue"
+            
+        pending_triggers = [t for t in record.triggers if t.status == ProbationTriggerStatus.TRIGGERED]
+        if pending_triggers:
+            # Check if any are due today or in the past
+            if any(t.trigger_date <= date.today() for t in pending_triggers):
+                # Day 80 is special
+                final_trigger = next((t for t in pending_triggers if t.trigger_day == 80), None)
+                if final_trigger and final_trigger.trigger_date <= date.today():
+                    return "Final Review Due"
+                return "Pending Form"
+                
+        return "On Track"
+
     def get_working_days_elapsed(self, record: ProbationRecord) -> int:
         paused_ranges = []
         if record.is_paused and record.pause_start_date:
@@ -155,6 +186,18 @@ class ProbationService:
         if not record:
             raise ValueError("Record not found")
         record.probation_status = ProbationStatus.REJECTED
+        db.commit()
+        db.refresh(record)
+        return record
+
+    def recommend(self, db: Session, record_id: int, data: Any, user_id: int) -> ProbationRecord:
+        record = self.get_record(db, record_id)
+        if not record:
+            raise ValueError("Record not found")
+        
+        # In a real app, verify user_id is the manager or admin
+        record.recommendation = data.recommendation
+        record.recommendation_notes = data.recommendation_notes
         db.commit()
         db.refresh(record)
         return record

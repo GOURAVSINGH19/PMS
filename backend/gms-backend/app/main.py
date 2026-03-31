@@ -18,6 +18,11 @@ from app.routers import admin_flags as admin_flags_router
 
 app = FastAPI(title="PMS — Performance & Goal Management Platform", version="2.0.0")
 
+@app.middleware("http")
+async def log_requests(request, call_next):
+    print(f"[DEBUG] {request.method} {request.url.path}")
+    return await call_next(request)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

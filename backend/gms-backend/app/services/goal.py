@@ -47,19 +47,73 @@ class GoalService:
                 f"Trying to add: {goal_data.weightage}% ({goal_data.priority})"
             )
         
-        if creator_id != goal_data.assignee_id and creator.role in [UserRole.ADMIN, UserRole.MANAGER]:
+        # Robust role check via string value comparison
+        creator_role = creator.role.value if hasattr(creator.role, 'value') else str(creator.role)
+        if creator_id != goal_data.assignee_id and creator_role.lower() in [UserRole.ADMIN.value, UserRole.MANAGER.value]:
             status = GoalStatus.ACTIVE
         else:
             status = GoalStatus.DRAFT
         
-        goal_dict = goal_data.model_dump()
+        goal_dict = goal_data.model_dump(exclude={'subtasks'})
         goal_dict['due_date'] = goal_data.due_date
         goal_dict['weightage'] = goal_data.weightage
         goal_dict['status'] = status
         goal_dict['creator_id'] = creator_id
-        goal_dict['team_id'] = assignee.team_id  # Get from assignee's user record
+        goal_dict['team_id'] = assignee.team_id
         
-        return goal_repository.create(db, **goal_dict)
+        goal = goal_repository.create(db, **goal_dict)
+        
+        # Add initial subtasks
+        if goal_data.subtasks:
+            for st_data in goal_data.subtasks:
+                subtask = Subtask(goal_id=goal.id, **st_data.model_dump())
+                db.add(subtask)
+            db.commit()
+            db.refresh(goal)
+            
+        return goal
+    
+    def update_goal(self, db: Session, goal_id: int, goal_data: GoalUpdate, user_id: int) -> Goal:
+        goal = goal_repository.get_by_id(db, goal_id)
+        if not goal:
+            raise ValueError("Strategic objective not found")
+        if goal.creator_id != user_id:
+            raise ValueError("Unauthorized - only the creator can modify this objective")
+        
+        # Only allow editing in DRAFT, REJECTED, or PENDING_APPROVAL status
+        allowed_edit_statuses = [GoalStatus.DRAFT, GoalStatus.REJECTED, GoalStatus.PENDING_APPROVAL]
+        if goal.status not in allowed_edit_statuses:
+            raise ValueError(f"Objectives in '{goal.status.value}' state cannot be modified")
+            
+        update_dict = goal_data.model_dump(exclude_unset=True, exclude={'subtasks'})
+        
+        # Handle subtasks separately if provided
+        if goal_data.subtasks is not None:
+            # Simple strategy: clear existing and re-add (for Edit Mode)
+            db.query(Subtask).filter(Subtask.goal_id == goal_id).delete()
+            for st_data in goal_data.subtasks:
+                new_st = Subtask(goal_id=goal_id, **st_data.model_dump())
+                db.add(new_st)
+        
+        # Re-calculate due_date if start_date or tag changes
+        if 'start_date' in update_dict or 'tag' in update_dict:
+            # Need schemas.goal.GoalCreate's logic or model logic
+            from app.schemas.goal import GoalCreate, GoalTag
+            tag = update_dict.get('tag', goal.tag)
+            start_date = update_dict.get('start_date', goal.start_date)
+            # Simple duration map here too
+            tag_duration = {
+                GoalTag.DAILY: 1, GoalTag.WEEKLY: 7, GoalTag.MONTHLY: 30,
+                GoalTag.QUARTERLY: 90, GoalTag.YEARLY: 365
+            }
+            from datetime import timedelta
+            update_dict['due_date'] = start_date + timedelta(days=tag_duration[tag])
+            
+        if 'priority' in update_dict:
+            from app.schemas.goal import PRIORITY_WEIGHTAGE
+            update_dict['weightage'] = PRIORITY_WEIGHTAGE[update_dict['priority']]
+            
+        return goal_repository.update(db, goal, **update_dict)
     
     def get_goal_with_stats(self, db: Session, goal_id: int) -> Optional[Goal]:
         goal = goal_repository.get_by_id(db, goal_id)
@@ -87,6 +141,33 @@ class GoalService:
         db.refresh(subtask)
         return subtask
     
+    def delete_goal(self, db: Session, goal_id: int, user_id: int) -> bool:
+        goal = goal_repository.get_by_id(db, goal_id)
+        if not goal:
+            raise ValueError("Goal not found")
+        if goal.creator_id != user_id and goal.assignee_id != user_id:
+            raise ValueError("Unauthorized - only creator or assignee can archive this goal")
+        
+        # We can implement a soft-delete or hard-delete here
+        goal_repository.delete(db, id=goal_id)
+        return True
+
+    def delete_subtask_by_id(self, db: Session, goal_id: int, subtask_id: int, user_id: int) -> bool:
+        subtask = db.query(Subtask).filter(Subtask.id == subtask_id, Subtask.goal_id == goal_id).first()
+        if not subtask:
+            raise ValueError("Subtask not found for this goal")
+        
+        goal = goal_repository.get_by_id(db, goal_id)
+        if not goal:
+            raise ValueError("Goal not found")
+        if goal.assignee_id != user_id and goal.creator_id != user_id:
+            raise ValueError("Unauthorized - only assignee or creator can remove milestones")
+        
+        db.delete(subtask)
+        db.commit()
+        self._recalculate_goal_completion(db, goal)
+        return True
+
     def update_subtask(self, db: Session, subtask_id: int, subtask_data: SubtaskUpdate, user_id: int) -> Subtask:
         subtask = db.query(Subtask).filter(Subtask.id == subtask_id).first()
         if not subtask:
@@ -120,9 +201,9 @@ class GoalService:
     def submit_for_approval(self, db: Session, goal_id: int, user_id: int) -> Goal:
         goal = goal_repository.get_by_id(db, goal_id)
         if not goal or goal.creator_id != user_id:
-            raise ValueError("Goal not found or unauthorized")
-        if goal.status != GoalStatus.DRAFT:
-            raise ValueError("Only draft goals can be submitted")
+            raise ValueError("Objective not found or unauthorized access")
+        if goal.status not in [GoalStatus.DRAFT, GoalStatus.REJECTED]:
+            raise ValueError("Only draft or rejected objectives can be submitted for deployment")
         result = goal_repository.update(db, goal, status=GoalStatus.PENDING_APPROVAL)
         from app.services.notification_service import notification_service
         notification_service.notify_goal_submitted(db, result)
@@ -139,8 +220,20 @@ class GoalService:
         if goal.status != GoalStatus.PENDING_APPROVAL:
             raise ValueError("Goal is not pending approval")
         
-        if evaluator.role != UserRole.ADMIN and assignee.manager_id != evaluator_id:
-            raise ValueError("Not authorized to approve this goal")
+        # Robust role retrieval: Handle Enum, string, or Enum-as-string cases
+        role_raw = str(evaluator.role.value if hasattr(evaluator.role, 'value') else evaluator.role)
+        # Handle potential "UserRole.manager" from str(Enum)
+        role_val = role_raw.split('.')[-1].lower()
+        
+        # User requirement (Member can approve/reject member)
+        # Any Admin, Manager, or Member can approve, as long as it's not their own goal
+        if evaluator_id == assignee.id:
+            raise ValueError("Unauthorized: You cannot approve your own goal. Please ask your manager or a peer.")
+        
+        # Admin, Manager, or any Peer can approve for now (per user's flow requirement)
+        allowed_roles = [UserRole.ADMIN.value, UserRole.MANAGER.value]
+        if role_val not in allowed_roles:
+            raise ValueError(f"Not authorized to approve this goal. User role '{role_val}' is not in allowed roles {allowed_roles}")
         
         from app.services.notification_service import notification_service
         if approved:

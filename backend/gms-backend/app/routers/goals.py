@@ -19,7 +19,17 @@ def get_goals(db: Session = Depends(get_db), current_user: User = Depends(get_cu
     from app.repositories.goal import goal_repository
     from app.schemas.feedback import Feedback as FeedbackSchema
     from app.schemas.score import Score as ScoreSchema
+    
     goals = goal_repository.get_all(db)
+    
+    # Normalize role for check
+    role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
+    role = role.lower()
+    
+    # Filter for members: Only see self-assigned goals
+    if role in ['member', 'employee']:
+        goals = [g for g in goals if g.assignee_id == current_user.id]
+    
     result = []
     for goal in goals:
         goal_dict = goal_schema.Goal.model_validate(goal).model_dump()
@@ -33,6 +43,18 @@ def get_goals(db: Session = Depends(get_db), current_user: User = Depends(get_cu
 def create_goal(goal_in: goal_schema.GoalCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         return goal_service.create_goal(db, goal_in, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.patch("/{goal_id}", response_model=goal_schema.Goal)
+def update_goal(
+    goal_id: int, 
+    goal_in: goal_schema.GoalUpdate, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        return goal_service.update_goal(db, goal_id, goal_in, current_user.id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -94,15 +116,33 @@ def update_progress(goal_id: int, progress: goal_schema.ProgressUpdate, db: Sess
 @router.post("/{goal_id}/complete")
 def complete_goal(goal_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
-        goal = goal_service.get_goal_with_stats(db, goal_id)
-        if not goal or goal.assignee_id != current_user.id:
-            raise HTTPException(status_code=403, detail="Unauthorized")
+        # Allow assignee, manager, or admin to complete
+        role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
+        is_manager_or_admin = role.lower() in ['admin', 'manager']
+        
+        if not goal or (goal.assignee_id != current_user.id and not is_manager_or_admin):
+            raise HTTPException(status_code=403, detail="Unauthorized - Only assignee or manager/admin can resolve this goal")
         if goal.status != GoalStatus.ACTIVE:
             raise HTTPException(status_code=400, detail="Can only complete active goals")
         
         from app.repositories.goal import goal_repository
         goal_repository.update(db, goal, status=GoalStatus.AWAITING_FEEDBACK, completion_percentage=100)
         return goal_service.get_goal_with_stats(db, goal_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.delete("/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{goal_id}/archive", status_code=status.HTTP_204_NO_CONTENT)
+def delete_goal(goal_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        goal_service.delete_goal(db, goal_id, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.delete("/{goal_id}/subtasks/{subtask_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_subtask(goal_id: int, subtask_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        goal_service.delete_subtask_by_id(db, goal_id, subtask_id, current_user.id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

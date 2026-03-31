@@ -41,14 +41,28 @@ class ProbationTriggerResponse(BaseModel):
         from_attributes = True
 
 
+class EmployeeInfo(BaseModel):
+    id: int
+    name: str
+    email: str
+    
+    class Config:
+        from_attributes = True
+
+
 class ProbationRecordResponse(BaseModel):
     id: int
     employee_id: int
+    employee: Optional[EmployeeInfo] = None
     date_of_joining: date
     probation_status: ProbationStatus
     is_paused: bool
     pause_start_date: Optional[date] = None
     pause_resume_date: Optional[date] = None
+    recommendation: Optional[str] = None
+    recommendation_notes: Optional[str] = None
+    calculated_status: Optional[str] = "On Track"
+    probation_end_date: Optional[date] = None
     created_at: datetime
     triggers: List[ProbationTriggerResponse] = []
     working_days_elapsed: Optional[int] = None
@@ -63,3 +77,8 @@ class ProbationPauseRequest(BaseModel):
 
 class ProbationResumeRequest(BaseModel):
     resume_date: date
+
+
+class ProbationRecommendRequest(BaseModel):
+    recommendation: str
+    recommendation_notes: Optional[str] = None

@@ -91,18 +91,74 @@ def team_dashboard(
             "avg_completion_pct": round(avg, 1),
         })
 
-    pending_approvals = db.query(Goal).filter(
+    # Detailed pending approvals
+    pending_approvals_list = db.query(Goal).filter(
         Goal.status == GoalStatus.PENDING_APPROVAL,
-        Goal.team_id == current_user.team_id
-    ).count() if current_user.team_id else 0
+        Goal.team_id == current_user.team_id if current_user.team_id else True
+    ).all()
+
+    # Detailed pending reviews for team members (Self-assessments or manager reviews not yet complete)
+    team_member_ids = [m.id for m in members]
+    pending_reviews_list = db.query(ReviewForm).filter(
+        ReviewForm.employee_id.in_(team_member_ids),
+        ReviewForm.status.in_([ReviewFormStatus.PENDING, ReviewFormStatus.IN_PROGRESS])
+    ).all()
+
+    # Flagged team members (Based on their forms)
+    flagged_forms = db.query(ReviewForm).filter(
+        ReviewForm.employee_id.in_(team_member_ids),
+        ReviewForm.is_flagged > 0
+    ).all()
+
+    # Probation records for team members
+    probation_list = db.query(ProbationRecord).filter(
+        ProbationRecord.employee_id.in_(team_member_ids),
+        ProbationRecord.probation_status == ProbationStatus.IN_PROBATION
+    ).all()
 
     return {
         "team_id": team.id if team else None,
         "team_name": team.name if team else "All Teams",
         "members": member_stats,
         "team_completion_pct": round(sum(all_completion) / len(all_completion), 1) if all_completion else 0.0,
-        "pending_approvals": pending_approvals,
+        "pending_approvals_count": len(pending_approvals_list),
+        "pending_approvals": [
+            {
+                "id": g.id,
+                "title": g.title,
+                "assignee_name": g.assignee.name if g.assignee else "Unknown",
+                "weightage": g.weightage,
+                "priority": g.priority.value
+            } for g in pending_approvals_list
+        ],
         "at_risk_count": all_at_risk,
+        "flagged_members": [
+            {
+                "id": f.id,
+                "employee_name": f.employee.name if f.employee else "Unknown",
+                "reason": f.flag_reason,
+                "level": "Red" if f.is_flagged == 2 else "Soft"
+            } for f in flagged_forms
+        ],
+        "probation_members": [
+            {
+                "id": p.id,
+                "employee_name": p.employee.name if p.employee else "Unknown",
+                "status": probation_service.get_calculated_status(p),
+                "end_date": p.probation_end_date.isoformat() if p.probation_end_date else None,
+                "milestones": [
+                    {"day": t.trigger_day, "status": t.status.value} for t in p.triggers
+                ]
+            } for p in probation_list
+        ],
+        "pending_reviews": [
+            {
+                "id": f.id,
+                "employee_name": f.employee.name if f.employee else "Unknown",
+                "type": f.form_type.value,
+                "status": f.status.value
+            } for f in pending_reviews_list
+        ]
     }
 
 

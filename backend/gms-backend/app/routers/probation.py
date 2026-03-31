@@ -9,7 +9,8 @@ from app.services.probation_service import probation_service
 from app.schemas.probation import (
     ProbationRecordCreate, ProbationRecordResponse,
     ProbationFeedbackCreate, ProbationFeedbackResponse,
-    ProbationTriggerResponse, ProbationPauseRequest, ProbationResumeRequest
+    ProbationTriggerResponse, ProbationPauseRequest, ProbationResumeRequest,
+    ProbationRecommendRequest
 )
 
 router = APIRouter()
@@ -38,6 +39,8 @@ def list_probation_records(
     records = probation_service.list_records(db, skip, limit)
     for r in records:
         r.working_days_elapsed = probation_service.get_working_days_elapsed(r)
+        r.calculated_status = probation_service.get_calculated_status(r)
+        r.probation_end_date = probation_service.get_probation_end_date(r)
     return records
 
 
@@ -54,6 +57,8 @@ def get_probation_by_employee(
     if not record:
         raise HTTPException(status_code=404, detail="Probation record not found")
     record.working_days_elapsed = probation_service.get_working_days_elapsed(record)
+    record.calculated_status = probation_service.get_calculated_status(record)
+    record.probation_end_date = probation_service.get_probation_end_date(record)
     return record
 
 
@@ -70,6 +75,8 @@ def get_probation_record(
     if current_user.id != record.employee_id:
         require_manager_or_admin(current_user)
     record.working_days_elapsed = probation_service.get_working_days_elapsed(record)
+    record.calculated_status = probation_service.get_calculated_status(record)
+    record.probation_end_date = probation_service.get_probation_end_date(record)
     return record
 
 
@@ -123,6 +130,24 @@ def reject_probation(
     require_admin(current_user)
     try:
         return probation_service.reject(db, record_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{record_id}/recommend", response_model=ProbationRecordResponse)
+def recommend_probation(
+    record_id: int,
+    body: ProbationRecommendRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    require_manager_or_admin(current_user)
+    try:
+        record = probation_service.recommend(db, record_id, body, current_user.id)
+        record.calculated_status = probation_service.get_calculated_status(record)
+        record.probation_end_date = probation_service.get_probation_end_date(record)
+        record.working_days_elapsed = probation_service.get_working_days_elapsed(record)
+        return record
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

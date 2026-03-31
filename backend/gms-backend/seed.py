@@ -14,7 +14,6 @@ from app.enums import UserRole
 from app.auth import hash_password
 
 Base.metadata.create_all(bind=engine)
-
 db = SessionLocal()
 
 try:
@@ -70,10 +69,10 @@ try:
 
     db.commit()
     print("✅ Seed complete!")
-    print("  harshit@opstree.com  / test  (admin)")
-    print("  manager@opstree.com  / test  (manager)")
-    print("  member1@opstree.com  / test  (member)")
-    print("  member2@opstree.com  / test  (member)")
+    print("  sandeep@opstree.com  / test  (admin)")
+    print("  deepak@opstree.com   / test  (manager)")
+    print("  harshit@opstree.com  / test  (member)")
+    print("  gourav@opstree.com   / test  (member)")
 
 finally:
     db.close()
