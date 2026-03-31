@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import Layout from '../components/Layout';
 import { teamService, userService, goalService, feedbackService } from '../api';
+import { useAuthStore } from '../store/auth';
 import toast from 'react-hot-toast';
 
 const COLORS = {
@@ -26,7 +27,7 @@ const COLORS = {
 };
 
 export default function Teams() {
-  const navigate = useNavigate();
+  const { user: currentUser } = useAuthStore();
   const [teams, setTeams] = useState([]);
   const [users, setUsers] = useState([]);
   const [feedbacks, setFeedbacks] = useState([]);
@@ -36,6 +37,7 @@ export default function Teams() {
   const [showModal, setShowModal] = useState(false);
   const [error, setError] = useState(false);
   
+  const isAdmin = currentUser?.role === 'admin';  
   useEffect(() => {
     loadData();
   }, []);
@@ -113,15 +115,17 @@ export default function Teams() {
             <h1 style={{ fontSize: 24, fontWeight: 800, color: COLORS.text, letterSpacing: "-0.03em" }}>Squads & Brigades</h1>
             <p style={{ fontSize: 14, color: COLORS.muted, marginTop: 4 }}>Organisational structure and cross-functional performance tracking</p>
           </div>
-          <button onClick={() => { setEditingTeam(null); setShowModal(true); }}
-            style={{
-              background: COLORS.accent, border: "none",
-              padding: "10px 20px", borderRadius: 10, fontSize: 13, fontWeight: 700,
-              color: "#fff", display: "flex", alignItems: "center", gap: 8,
-              boxShadow: `0 4px 12px ${COLORS.accent}33`, cursor: "pointer",
-            }}>
-            <Plus size={16} /> Form New Squad
-          </button>
+          {isAdmin && (
+            <button onClick={() => { setEditingTeam(null); setShowModal(true); }}
+              style={{
+                background: COLORS.accent, border: "none",
+                padding: "10px 20px", borderRadius: 10, fontSize: 13, fontWeight: 700,
+                color: "#fff", display: "flex", alignItems: "center", gap: 8,
+                boxShadow: `0 4px 12px ${COLORS.accent}33`, cursor: "pointer",
+              }}>
+              <Plus size={16} /> Form New Squad
+            </button>
+          )}
         </div>
 
         {/* Global Performance Summary */}
@@ -192,14 +196,18 @@ export default function Teams() {
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 4 }}>
-                    <button onClick={(e) => { e.stopPropagation(); setEditingTeam(team); setShowModal(true); }}
-                      style={{ background: COLORS.bg, border: "none", padding: 6, borderRadius: 6, cursor: "pointer", color: COLORS.muted }}>
-                      <Edit size={14} />
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDelete(team.id); }}
-                      style={{ background: `${COLORS.rose}08`, border: "none", padding: 6, borderRadius: 6, cursor: "pointer", color: COLORS.rose }}>
-                      <Trash2 size={14} />
-                    </button>
+                    {(isAdmin || team.manager_id === currentUser?.id) && (
+                      <>
+                        <button onClick={(e) => { e.stopPropagation(); setEditingTeam(team); setShowModal(true); }}
+                          style={{ background: COLORS.bg, border: "none", padding: 6, borderRadius: 6, cursor: "pointer", color: COLORS.muted }}>
+                          <Edit size={14} />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); handleDelete(team.id); }}
+                          style={{ background: `${COLORS.rose}08`, border: "none", padding: 6, borderRadius: 6, cursor: "pointer", color: COLORS.rose }}>
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 

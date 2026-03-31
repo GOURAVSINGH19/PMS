@@ -9,3 +9,4 @@ export { default as feedbackService } from './feedback';
 export { default as probationService } from './probation';
 export { default as notificationService } from './notification';
 export { default as adminService } from './admin';
+export { default as dashboardService } from './dashboard';

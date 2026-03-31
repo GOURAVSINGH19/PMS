@@ -1,45 +1,151 @@
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { 
   Plus, Filter, Target, ChevronRight, Search, 
-  ArrowUpRight, Clock, CheckCircle2, AlertTriangle, Flag
+  ArrowUpRight, Clock, CheckCircle2, AlertTriangle, Flag,
+  XCircle, Zap, TrendingUp, Layers, User, Calendar
 } from 'lucide-react';
 import Layout from '../components/Layout';
-import { teamService, userService, goalService } from '../api';
+import { goalService } from '../api';
 import { GoalStatus } from '../constants/enums';
+import { useAuthStore } from '../store/auth';
 import { formatDate } from '../utils/format';
 import toast from 'react-hot-toast';
 
 const COLORS = {
-  bg: "#F5F4F0",
+  bg: "#FAFAFA",
   surface: "#FFFFFF",
-  card: "#FFFFFF",
-  border: "#E4E2DC",
-  accent: "#2563EB",
-  accentDim: "#1D4ED8",
-  emerald: "#059669",
-  amber: "#D97706",
-  rose: "#DC2626",
-  violet: "#7C3AED",
-  text: "#111111",
-  muted: "#6B7280",
+  card: "rgba(255, 255, 255, 0.8)",
+  border: "rgba(229, 231, 235, 0.5)",
+  accent: "#3B82F6",
+  emerald: "#10B981",
+  amber: "#F59E0B",
+  rose: "#EF4444",
+  violet: "#8B5CF6",
+  text: "#111827",
+  muted: "#4B5563",
   subtle: "#9CA3AF",
 };
 
-const StatusPill = ({ status }) => {
+const StatusPill = ({ status, atRisk }) => {
+  const displayStatus = atRisk ? 'At Risk' : status;
   const config = {
-    [GoalStatus.ACTIVE]: { bg: `${COLORS.accent}12`, text: COLORS.accent, label: "Active" },
-    [GoalStatus.COMPLETED]: { bg: `${COLORS.emerald}12`, text: COLORS.emerald, label: "Completed" },
-    [GoalStatus.PENDING_APPROVAL]: { bg: `${COLORS.amber}12`, text: COLORS.amber, label: "Pending" },
-    "At Risk": { bg: `${COLORS.rose}12`, text: COLORS.rose, label: "At Risk" },
+    [GoalStatus.ACTIVE]: { bg: `${COLORS.accent}15`, text: COLORS.accent, label: "Active" },
+    [GoalStatus.COMPLETED]: { bg: `${COLORS.emerald}15`, text: COLORS.emerald, label: "Completed" },
+    [GoalStatus.PENDING_APPROVAL]: { bg: `${COLORS.amber}15`, text: COLORS.amber, label: "Pending" },
+    [GoalStatus.REJECTED]: { bg: `${COLORS.rose}15`, text: COLORS.rose, label: "Rejected" },
+    'At Risk': { bg: `${COLORS.rose}15`, text: COLORS.rose, label: "At Risk" },
   };
-  const c = config[status] || { bg: COLORS.bg, text: COLORS.muted, label: status };
+  const c = config[displayStatus] || { bg: "rgba(0,0,0,0.05)", text: COLORS.muted, label: displayStatus };
+  
   return (
     <div style={{
-      display: "inline-flex", padding: "4px 10px", borderRadius: 6,
+      display: "inline-flex", padding: "4px 12px", borderRadius: 20,
       background: c.bg, color: c.text,
-      fontSize: 11, fontWeight: 700,
+      fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.02em",
+      backdropFilter: "blur(4px)", border: `1px solid ${c.text}20`
     }}>{c.label}</div>
+  );
+};
+
+const GoalCard = ({ goal, currentUser, onApprove, onReject }) => {
+  const navigate = useNavigate();
+  const role = currentUser?.role?.toString().toLowerCase().split('.').pop() || '';
+  const canApprove = (role === 'admin' || role === 'manager') && goal.assignee_id !== currentUser?.id;
+  
+  const levelColors = {
+    company: COLORS.violet,
+    team: COLORS.accent,
+    individual: COLORS.emerald
+  };
+  const themeColor = levelColors[goal.level] || COLORS.accent;
+
+  return (
+    <div 
+      onClick={() => navigate(`/goals/${goal.id}`)}
+      style={{
+        display: "flex", flexDirection: "column", gap: 16, 
+        padding: 24, background: COLORS.card,
+        border: `1.5px solid ${COLORS.border}`, borderRadius: 24,
+        textDecoration: "none", transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        cursor: "pointer", position: "relative", overflow: "hidden",
+        backdropFilter: "blur(12px)",
+        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)"
+      }} 
+      onMouseEnter={e => {
+        e.currentTarget.style.transform = "translateY(-4px)";
+        e.currentTarget.style.borderColor = themeColor + "40";
+        e.currentTarget.style.boxShadow = `0 20px 25px -5px ${themeColor}15`;
+      }} 
+      onMouseLeave={e => {
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.borderColor = COLORS.border;
+        e.currentTarget.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)";
+      }}
+    >
+      {/* Level Gradient Accent */}
+      <div style={{ 
+        position: "absolute", top: 0, left: 0, right: 0, height: 4, 
+        background: `linear-gradient(90deg, ${themeColor}00, ${themeColor}, ${themeColor}00)` 
+      }} />
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 10, fontWeight: 800, color: themeColor, textTransform: "uppercase", letterSpacing: "0.1em" }}>{goal.level}</span>
+            {goal.is_at_risk && <div style={{ width: 6, height: 6, borderRadius: "50%", background: COLORS.rose, boxShadow: `0 0 10px ${COLORS.rose}` }} />}
+          </div>
+          <h3 style={{ fontSize: 16, fontWeight: 800, color: COLORS.text, lineHeight: 1.3 }}>{goal.title}</h3>
+        </div>
+        <div style={{ p: 8, borderRadius: 12, background: `${themeColor}10`, color: themeColor }}>
+          <ArrowUpRight size={18} />
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <TrendingUp size={14} color={COLORS.subtle} />
+            <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.muted }}>Progress</span>
+          </div>
+          <span style={{ fontSize: 14, fontWeight: 900, color: themeColor }}>{goal.completion_percentage}%</span>
+        </div>
+        <div style={{ width: "100%", height: 8, background: "rgba(0,0,0,0.04)", borderRadius: 10, overflow: "hidden" }}>
+          <div style={{ 
+            width: `${goal.completion_percentage}%`, height: "100%", 
+            background: `linear-gradient(90deg, ${themeColor}, ${themeColor}dd)`, 
+            borderRadius: 10, transition: "width 1s ease-out" 
+          }} />
+        </div>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto", paddingTop: 16, borderTop: `1px solid ${COLORS.border}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ 
+            width: 32, height: 32, borderRadius: 10, background: `${COLORS.accent}10`, 
+            display: "flex", alignItems: "center", justifyContent: "center",
+            border: `1px solid ${COLORS.accent}20`
+          }}>
+            <User size={14} color={COLORS.accent} />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.text }}>{goal.assignee?.name || "Unassigned"}</span>
+            <span style={{ fontSize: 9, fontWeight: 600, color: COLORS.subtle }}>Owner</span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {goal.status === GoalStatus.PENDING_APPROVAL && canApprove && (
+            <div style={{ display: "flex", gap: 4, marginRight: 4 }}>
+              <button onClick={(e) => onApprove(e, goal.id)} style={{ background: COLORS.emerald, border: "none", width: 28, height: 28, borderRadius: 8, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "0.2s" }} onMouseEnter={e => e.currentTarget.style.transform = "scale(1.1)"} onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>
+                <CheckCircle2 size={14} />
+              </button>
+            </div>
+          )}
+          <StatusPill status={goal.status} atRisk={goal.is_at_risk} />
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -47,6 +153,28 @@ export default function Goals() {
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchParams] = useSearchParams();
+  const currentUser = useAuthStore((state) => state.user);
+  const navigate = useNavigate();
+
+  const handleApprove = async (e, goalId) => {
+    e.preventDefault(); e.stopPropagation();
+    try {
+      await goalService.approve(goalId);
+      toast.success('Objective Strategy Validated');
+      loadGoals();
+    } catch (e) { toast.error('Approval failed'); }
+  };
+
+  const handleReject = async (e, goalId) => {
+    e.preventDefault(); e.stopPropagation();
+    const reason = prompt("Enter specific feedback for rejection:");
+    if (!reason) return;
+    try {
+      await goalService.reject(goalId, reason);
+      toast.success('Intervention recorded');
+      loadGoals();
+    } catch (e) { toast.error('Intervention failed'); }
+  };
 
   useEffect(() => {
     loadGoals();
@@ -57,126 +185,99 @@ export default function Goals() {
       const response = await goalService.getAll();
       setGoals(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      toast.error('Failed to load goals');
+      toast.error('Strategic Pipeline unavailable');
     } finally {
       setLoading(false);
     }
   };
 
-  const levels = ["company", "team", "individual"];
-
   if (loading) return (
     <Layout>
       <div style={{ height: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ width: 32, height: 32, borderRadius: "50%", border: `3px solid ${COLORS.border}`, borderTopColor: COLORS.accent, animation: "spin 1s linear infinite" }} />
+        <div style={{ width: 40, height: 40, borderRadius: "50%", border: `3px solid ${COLORS.border}`, borderTopColor: COLORS.accent, animation: "spin 1s linear infinite" }} />
       </div>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </Layout>
   );
 
-  const safeGoals = Array.isArray(goals) ? goals : [];
+  const levels = ["company", "team", "individual"];
 
   return (
     <Layout>
-      <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 32, paddingBottom: 40 }}>
         
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <h1 style={{ fontSize: 24, fontWeight: 800, color: COLORS.text, letterSpacing: "-0.03em" }}>Goals</h1>
-            <p style={{ fontSize: 14, color: COLORS.muted, marginTop: 4 }}>Track and manage goals across the organization</p>
-          </div>
+        {/* Modern Header */}
+        <div style={{ 
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          borderRadius: 24, color: "#fff", position: "relative", overflow: "hidden",
+        }}>
+          {/* Decorative background shapes */}
+          
+
           <Link to="/goals/new" style={{
-            background: COLORS.accent, border: "none", textDecoration: "none",
-            padding: "10px 20px", borderRadius: 10, fontSize: 13, fontWeight: 700,
-            color: "#fff", display: "flex", alignItems: "center", gap: 8,
-            boxShadow: `0 4px 12px ${COLORS.accent}33`,
-          }}>
-            <Plus size={16} /> Create Goal
+            background: "#fff", border: "none", textDecoration: "none",
+            padding: "12px 24px", borderRadius: 14, fontSize: 14, fontWeight: 800,
+            color: COLORS.accent, display: "flex", alignItems: "center", gap: 8,
+            transition: "0.2s", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)"
+          }} onMouseEnter={e => e.currentTarget.style.transform = "scale(1.05)"} onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>
+            <Plus size={18} strokeWidth={3} /> create goal
           </Link>
         </div>
 
-        {/* Filters */}
-        <div style={{
-          display: "flex", alignItems: "center", gap: 12,
-          padding: "12px 16px", background: COLORS.surface,
-          border: `1px solid ${COLORS.border}`, borderRadius: 14,
-        }}>
-          <Search size={16} color={COLORS.subtle} />
-          <input type="text" placeholder="Search by title or owner..." style={{
-            border: "none", background: "none", fontSize: 13, flex: 1, outline: "none",
-          }} />
-          <div style={{ width: 1, height: 20, background: COLORS.border }} />
-          {/* <button style={{
-            background: "none", border: "none", fontSize: 13, fontWeight: 600,
-            color: COLORS.muted, display: "flex", alignItems: "center", gap: 6, cursor: "pointer",
-          }}>
-            <Filter size={14} /> Filter
-          </button> */}
-        </div>
-
-        {/* Level Pipeline */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
+        {/* Global Pipeline View */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
           {levels.map(level => {
-            const levelGoals = safeGoals.filter(g => g.level === level);
+            const levelGoals = goals.filter(g => g.level === level);
             return (
-              <div key={level} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 4px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: level === 'company' ? COLORS.violet : (level === 'team' ? COLORS.accent : COLORS.emerald) }} />
-                    <span style={{ fontSize: 12, fontWeight: 800, color: COLORS.text, textTransform: "uppercase", letterSpacing: "0.05em" }}>{level}</span>
+              <div key={level} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 8px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ 
+                      width: 40, height: 40, borderRadius: 14, 
+                      background: level === 'company' ? `${COLORS.violet}15` : (level === 'team' ? `${COLORS.accent}15` : `${COLORS.emerald}15`),
+                      display: "flex", alignItems: "center", justifyContent: "center" 
+                    }}>
+                      {level === 'company' ? <Layers size={20} color={COLORS.violet} /> : (level === 'team' ? <User size={20} color={COLORS.accent} /> : <Target size={20} color={COLORS.emerald} />)}
+                    </div>
+                    <div>
+                      <h2 style={{ fontSize: 18, fontWeight: 800, color: COLORS.text, textTransform: "capitalize" }}>{level} Pipeline</h2>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.subtle }}>{levelGoals.length} Active Modules</span>
+                    </div>
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted }}>{levelGoals.length} Goals</span>
                 </div>
                 
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {levelGoals.map(goal => (
-                    <Link key={goal.id} to={`/goals/${goal.id}`} style={{
-                      display: "flex", flexDirection: "column", gap: 14, 
-                      padding: 20, background: COLORS.card,
-                      border: `1.5px solid ${COLORS.border}`, borderRadius: 16,
-                      textDecoration: "none", transition: "all 0.2s",
-                    }} onMouseEnter={e => e.currentTarget.style.borderColor = COLORS.accent} onMouseLeave={e => e.currentTarget.style.borderColor = COLORS.border}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                          <span style={{ fontSize: 14, fontWeight: 700, color: COLORS.text }}>{goal.title}</span>
-                          <span style={{ fontSize: 11, fontWeight: 500, color: COLORS.subtle }}>Due: {formatDate(goal.due_date)}</span>
-                        </div>
-                        {goal.is_at_risk && <Flag size={14} color={COLORS.rose} />}
-                      </div>
-                      
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted }}>Progress</span>
-                          <span style={{ fontSize: 11, fontWeight: 800, color: COLORS.accent }}>{goal.completion_pct}%</span>
-                        </div>
-                        <div style={{ width: "100%", height: 5, background: COLORS.bg, borderRadius: 10, overflow: "hidden" }}>
-                          <div style={{ width: `${goal.completion_pct}%`, height: "100%", background: goal.is_at_risk ? COLORS.rose : COLORS.accent, borderRadius: 10 }} />
-                        </div>
-                      </div>
-
-                      <div style={{ display: "flex", items: "center", justifyContent: "space-between", paddingTop: 4 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <div style={{ width: 18, height: 18, borderRadius: 5, background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: COLORS.muted }}>
-                            {goal.owner?.name?.charAt(0) || "U"}
-                          </div>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: COLORS.muted }}>{goal.owner?.name || "Unassigned"}</span>
-                        </div>
-                        <StatusPill status={goal.is_at_risk ? "At Risk" : goal.status} />
-                      </div>
-                    </Link>
-                  ))}
-                  {levelGoals.length === 0 && (
-                    <div style={{ border: `1.5px dashed ${COLORS.border}`, borderRadius: 16, padding: 32, textAlign: "center", color: COLORS.subtle, fontSize: 12 }}>
-                      No {level} goals yet
+                {levelGoals.length > 0 ? (
+                  <div style={{ 
+                    display: "grid", 
+                    gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", 
+                    gap: 24 
+                  }}>
+                    {levelGoals.map(goal => (
+                      <GoalCard 
+                        key={goal.id} 
+                        goal={goal} 
+                        currentUser={currentUser}
+                        onApprove={handleApprove}
+                        onReject={handleReject}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ 
+                    padding: 40, borderRadius: 24, background: "rgba(0,0,0,0.02)", 
+                    border: `2px dashed ${COLORS.border}`, display: "flex", 
+                    flexDirection: "column", alignItems: "center", gap: 12, color: COLORS.subtle
+                  }}>
+                    <div style={{ p: 12, background: "#fff", borderRadius: "50%", boxShadow: "0 2px 4px rgba(0,0,0,0.05)" }}>
+                       <Target size={24} />
                     </div>
-                  )}
-                </div>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>No tactical objectives defined for this pipeline</span>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
-
       </div>
     </Layout>
   );

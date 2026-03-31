@@ -12,9 +12,10 @@ export default defineConfig({
     tailwindcss(),
   ],
   server: {
+    port: 3001,
     proxy: {
-      '/api/v1': {
-        target: 'http://gms-backend:8000',
+      '/api': {
+        target: 'http://localhost:8003',
         changeOrigin: true,
       }
     }

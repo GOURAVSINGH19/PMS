@@ -99,13 +99,6 @@ export default function Layout({ children }) {
             PMS
           </span>
         </div>
-        <div style={{ flex: 1, display: "flex", justifyContent: "center", padding: "0 40px" }}>
-          <div style={{ position: "relative", width: "100%", maxWidth: 400 }}>
-            <Search size={14} color={COLORS.subtle} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
-            <input type="text" placeholder="Jump to goals, teams or members... (Ctrl+K)"
-              style={{ width: "100%", height: 36, background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "0 12px 0 36px", fontSize: 12, fontWeight: 500, outline: "none", color: COLORS.text }} />
-          </div>
-        </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {/* Role Badge */}
@@ -140,15 +133,12 @@ export default function Layout({ children }) {
             <Bell size={15} color={COLORS.muted} />
             {unreadCount > 0 && (
               <div style={{
-                position: "absolute", top: -4, right: -4,
-                width: 16, height: 16, borderRadius: "50%",
-                background: COLORS.rose, color: "#fff",
-                fontSize: 9, fontWeight: 800,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                border: `2px solid ${COLORS.surface}`,
-              }}>
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </div>
+                position: "absolute", top: 6, right: 6,
+                width: 8, height: 8, borderRadius: "50%",
+                background: COLORS.rose,
+                border: `1.5px solid ${COLORS.surface}`,
+                boxShadow: `0 0 0 2px ${COLORS.rose}20`,
+              }} />
             )}
           </div>
 
@@ -221,17 +211,6 @@ export default function Layout({ children }) {
               </Link>
             );
           })}
-
-          <div style={{ flex: 1 }} />
-          <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: 12, marginTop: 8 }}>
-            <div style={{
-              display: "flex", alignItems: "center", gap: 10,
-              padding: "9px 12px", borderRadius: 9, cursor: "pointer",
-            }}>
-              <Settings size={15} color={COLORS.muted} />
-              <span style={{ fontSize: 13, fontWeight: 500, color: COLORS.muted }}>Settings</span>
-            </div>
-          </div>
         </div>
 
         {/* Main content */}

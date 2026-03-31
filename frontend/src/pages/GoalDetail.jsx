@@ -5,11 +5,15 @@ import {
   Target, Clock, AlertTriangle, Shield, 
   ArrowLeft, ChevronRight, Zap, MessageSquare, 
   Activity, Award, FileText,
-  Calendar
+  Calendar,
+  ClipboardList
 } from 'lucide-react';
 import Layout from '../components/Layout';
-import { goalService } from '../api';
-import { GoalStatus, FeedbackType, PerformanceRating } from '../constants/enums';
+import { goalService, userService } from '../api';
+import { 
+  GoalStatus, FeedbackType, PerformanceRating, 
+  GoalLevel, GoalTag, GoalPriority, PRIORITY_WEIGHTAGE 
+} from '../constants/enums';
 import { formatDate, formatEnumValue } from '../utils/format';
 import { useAuthStore } from '../store/auth';
 import toast from 'react-hot-toast';
@@ -37,6 +41,7 @@ export default function GoalDetail() {
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [showSubtaskModal, setShowSubtaskModal] = useState(false);
   const [showInterventionModal, setShowInterventionModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const navigate = useNavigate();
   const currentUser = useAuthStore((state) => state.user);
 
@@ -110,9 +115,14 @@ export default function GoalDetail() {
     </Layout>
   );
 
-  const canApprove = currentUser?.role === 'admin' || currentUser?.role === 'manager';
-  const isAssignee = goal?.owner_id === currentUser?.id;
+  const role = currentUser?.role?.toString().toLowerCase().split('.').pop() || '';
+  const isAssignee = goal?.assignee_id === currentUser?.id;
+  
+  // Only Managers and Admins can approve if not their own goal
+  const canApprove = (role === 'admin' || role === 'manager') && !isAssignee;
   const isCreator = goal?.creator_id === currentUser?.id;
+  const isAdmin = role === 'admin';
+  const isManager = role === 'manager';
 
   return (
     <Layout>
@@ -131,8 +141,15 @@ export default function GoalDetail() {
              </div>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
-            {goal.status === GoalStatus.DRAFT && isCreator && (
-              <button onClick={handleSubmit} style={{ background: COLORS.accent, border: "none", padding: "10px 20px", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Submit for Approval</button>
+            {(goal.status === GoalStatus.DRAFT || goal.status === GoalStatus.REJECTED || (goal.status === GoalStatus.PENDING_APPROVAL && !canApprove)) && (isAssignee || isCreator) && (
+              <>
+                <button onClick={() => setShowEditModal(true)} style={{ background: COLORS.surface, border: `1.5px solid ${COLORS.border}`, padding: "10px 20px", borderRadius: 10, color: COLORS.text, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+                   <Edit size={16} /> Edit Objective
+                </button>
+                {goal.status !== GoalStatus.PENDING_APPROVAL && (
+                  <button onClick={handleSubmit} style={{ background: COLORS.accent, border: "none", padding: "10px 20px", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Submit for Approval</button>
+                )}
+              </>
             )}
             {goal.status === GoalStatus.PENDING_APPROVAL && canApprove && (
               <>
@@ -140,7 +157,7 @@ export default function GoalDetail() {
                 <button onClick={handleReject} style={{ background: COLORS.rose, border: "none", padding: "10px 20px", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Intervene / Reject</button>
               </>
             )}
-            {goal.status === GoalStatus.ACTIVE && isAssignee && (
+            {goal.status === GoalStatus.ACTIVE && (isAssignee || canApprove) && (
               <>
                 <button onClick={() => setShowProgressModal(true)} style={{ background: COLORS.accent, border: "none", padding: "10px 20px", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Action Progress</button>
                 {goal.completion_percentage === 100 ? (
@@ -286,8 +303,163 @@ export default function GoalDetail() {
         {showInterventionModal && (
           <InterventionModal onClose={() => setShowInterventionModal(false)} onSubmit={handleInterventionSubmit} />
         )}
+
+        {showEditModal && (
+          <EditGoalModal goal={goal} onClose={() => setShowEditModal(false)} onSuccess={loadGoal} />
+        )}
       </div>
     </Layout>
+  );
+}
+
+function EditGoalModal({ goal, onClose, onSuccess }) {
+  const [formData, setFormData] = useState({
+    title: goal.title,
+    description: goal.description || '',
+    level: goal.level,
+    tag: goal.tag,
+    priority: goal.priority,
+    start_date: goal.start_date,
+    assignee_id: goal.assignee_id,
+  });
+  const [subtasks, setSubtasks] = useState(goal.subtasks || []);
+  const [newSubtask, setNewSubtask] = useState({ title: '', weightage: 0 });
+  const [users, setUsers] = useState([]);
+  const [processing, setProcessing] = useState(false);
+  const currentUser = useAuthStore((state) => state.user);
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      const response = await userService.getAll();
+      setUsers(response.data);
+    } catch (e) { toast.error('Failed to load user list'); }
+  };
+
+  const handleAddSubtask = () => {
+    if (!newSubtask.title) return;
+    setSubtasks([...subtasks, { ...newSubtask }]);
+    setNewSubtask({ title: '', weightage: 0 });
+  };
+
+  const handleRemoveSubtask = (idx) => {
+    setSubtasks(subtasks.filter((_, i) => i !== idx));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setProcessing(true);
+    try {
+      await goalService.update(goal.id, {
+        ...formData,
+        subtasks: subtasks.map(s => ({ title: s.title, weightage: s.weightage }))
+      });
+      toast.success('Objective recalibrated');
+      onSuccess();
+      onClose();
+    } catch (error) {
+      toast.error('Update failed');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+       <div style={{ background: "#fff", padding: 32, borderRadius: 24, width: 550, maxHeight: "90vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 24 }}>
+          <div>
+             <div style={{ fontSize: 20, fontWeight: 900 }}>Edit Strategic Objective</div>
+             <p style={{ fontSize: 13, color: COLORS.muted }}>Modify the fundamental parameters and milestones of this objective.</p>
+          </div>
+
+          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: COLORS.subtle, textTransform: "uppercase" }}>Strategic Title</label>
+                <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} required
+                   style={{ padding: "12px", border: `1.5px solid ${COLORS.border}`, borderRadius: 12, fontSize: 14, outline: "none" }} />
+             </div>
+
+             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: COLORS.subtle, textTransform: "uppercase" }}>Narrative Description</label>
+                <textarea rows="2" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})}
+                   style={{ padding: "12px", border: `1.5px solid ${COLORS.border}`, borderRadius: 12, fontSize: 14, outline: "none", resize: "none" }} />
+             </div>
+
+             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                   <label style={{ fontSize: 11, fontWeight: 800, color: COLORS.subtle, textTransform: "uppercase" }}>Level</label>
+                   <select value={formData.level} onChange={e => setFormData({...formData, level: e.target.value})} style={{ padding: 12, borderRadius: 12, border: `1.5px solid ${COLORS.border}` }}>
+                      {Object.values(GoalLevel).map(l => <option key={l} value={l}>{l.toUpperCase()}</option>)}
+                   </select>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                   <label style={{ fontSize: 11, fontWeight: 800, color: COLORS.subtle, textTransform: "uppercase" }}>Classification</label>
+                   <select value={formData.tag} onChange={e => setFormData({...formData, tag: e.target.value})} style={{ padding: 12, borderRadius: 12, border: `1.5px solid ${COLORS.border}` }}>
+                      {Object.values(GoalTag).map(t => <option key={t} value={t}>{t.toUpperCase()}</option>)}
+                   </select>
+                </div>
+             </div>
+
+             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                   <label style={{ fontSize: 11, fontWeight: 800, color: COLORS.subtle, textTransform: "uppercase" }}>Priority</label>
+                   <select value={formData.priority} onChange={e => setFormData({...formData, priority: e.target.value})} style={{ padding: 12, borderRadius: 12, border: `1.5px solid ${COLORS.border}` }}>
+                      {Object.entries(PRIORITY_WEIGHTAGE).map(([p, w]) => <option key={p} value={p}>{p.toUpperCase()} ({w}%)</option>)}
+                   </select>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                   <label style={{ fontSize: 11, fontWeight: 800, color: COLORS.subtle, textTransform: "uppercase" }}>Start Date</label>
+                   <input type="date" value={formData.start_date} onChange={e => setFormData({...formData, start_date: e.target.value})}
+                      style={{ padding: 12, borderRadius: 12, border: `1.5px solid ${COLORS.border}` }} />
+                </div>
+             </div>
+
+             {/* Subtasks Section In Edit */}
+             <div style={{ background: COLORS.bg, padding: 20, borderRadius: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                   <ClipboardList size={16} color={COLORS.accent} />
+                   <span style={{ fontSize: 12, fontWeight: 800, color: COLORS.text, textTransform: "uppercase" }}>Tactical Milestones</span>
+                </div>
+                
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                   {subtasks.map((st, idx) => (
+                      <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fff", padding: "8px 12px", borderRadius: 10, border: `1px solid ${COLORS.border}` }}>
+                         <span style={{ fontSize: 13, fontWeight: 600 }}>{st.title}</span>
+                         <button type="button" onClick={() => handleRemoveSubtask(idx)} style={{ background: "none", border: "none", cursor: "pointer", color: COLORS.rose }}>
+                            <XCircle size={14} />
+                         </button>
+                      </div>
+                   ))}
+                </div>
+
+                <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                   <input type="text" placeholder="New milestone..." value={newSubtask.title} onChange={e => setNewSubtask({...newSubtask, title: e.target.value})}
+                      style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${COLORS.border}`, fontSize: 12 }} />
+                   <button type="button" onClick={handleAddSubtask} style={{ padding: "8px 16px", borderRadius: 8, background: COLORS.accent, color: "#fff", border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Add</button>
+                </div>
+             </div>
+
+             {currentUser.role !== 'member' && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                   <label style={{ fontSize: 11, fontWeight: 800, color: COLORS.subtle, textTransform: "uppercase" }}>Strategic Owner</label>
+                   <select value={formData.assignee_id} onChange={e => setFormData({...formData, assignee_id: Number(e.target.value)})} style={{ padding: 12, borderRadius: 12, border: `1.5px solid ${COLORS.border}` }}>
+                      {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                   </select>
+                </div>
+             )}
+
+             <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
+                <button type="button" onClick={onClose} style={{ flex: 1, padding: 12, borderRadius: 12, border: `1.5px solid ${COLORS.border}`, background: "#fff", fontWeight: 700, cursor: "pointer" }}>Dismiss</button>
+                <button type="submit" disabled={processing} style={{ flex: 2, padding: 12, borderRadius: 12, border: "none", background: COLORS.accent, color: "#fff", fontWeight: 700, cursor: "pointer" }}>
+                   {processing ? "Saving Changes..." : "Commit Update"}
+                </button>
+             </div>
+          </form>
+       </div>
+    </div>
   );
 }
 
@@ -342,11 +514,10 @@ function SubtasksSection({ goal, loadGoal, isAssignee }) {
              <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text }}>Tactical Milestones</div>
              <div style={{ fontSize: 13, color: COLORS.muted, marginTop: 2 }}>Granular sub-objectives required for success</div>
           </div>
-          {isOwner && (
+        
             <button onClick={() => setShowModal(true)} style={{ background: COLORS.bg, border: `1px solid ${COLORS.border}`, padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, color: COLORS.text, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
                <Plus size={14} /> Add Milestone
             </button>
-          )}
        </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

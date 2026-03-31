@@ -7,7 +7,7 @@ export const API_ENDPOINTS = {
     BY_ID: id => `/goals/${id}`,
     SUBMIT: id => `/goals/${id}/submit`,
     APPROVE: id => `/goals/${id}/approve`,
-    PROGRESS: id => `/goals/${id}/completion`,
+    PROGRESS: id => `/goals/${id}/progress`,
     SUBTASKS: id => `/goals/${id}/subtasks`,
     SCORING: id => `/goals/${id}/score`,
     MEMBER_FEEDBACK: id => `/goals/${id}/feedback/member`,
@@ -48,8 +48,13 @@ export const API_ENDPOINTS = {
     MARK_ALL: '/notifications/read-all',
     UNREAD_COUNT: '/notifications/unread-count',
   },
+  DASHBOARD: {
+    ME: '/dashboard/me',
+    TEAM: '/dashboard/team',
+    COMPANY: '/dashboard/company',
+  },
   ADMIN: {
-    DASHBOARD: '/dashboard/company',
+    BASE: '/dashboard/company',
     AUTOMATION: '/dashboard/company',
     FLAGS_TRIAGE: '/admin/flags/triage',
     FLAGS_STATS: '/admin/flags/statistics',

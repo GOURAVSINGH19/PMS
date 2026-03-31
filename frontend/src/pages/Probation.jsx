@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   UserCheck, Clock, Calendar, AlertTriangle, 
-  CheckCircle2, ChevronRight, Zap, RefreshCw
+  CheckCircle2, ChevronRight, Zap, RefreshCw,
+  Search, Filter, ArrowUpRight, BarChart3,
+  MoreHorizontal, FileText, UserMinus, ShieldCheck
 } from 'lucide-react';
 import Layout from '../components/Layout';
 import { probationService, userService } from '../api';
@@ -27,14 +29,13 @@ const COLORS = {
 
 export default function Probation() {
   const navigate = useNavigate();
-  const currentUser = useAuthStore((state) => state.user);
+  const { user: currentUser } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [probations, setProbations] = useState([]);
-  const [users, setUsers] = useState([]);
   const [error, setError] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    // Mocking probation data based on users for now
     loadData();
   }, []);
 
@@ -42,21 +43,8 @@ export default function Probation() {
     setError(false);
     setLoading(true);
     try {
-      const [probRes, usersRes] = await Promise.all([
-        probationService.getAll(),
-        userService.getAll()
-      ]);
-      const probs = Array.isArray(probRes.data) ? probRes.data : [];
-      const usersMap = {};
-      (usersRes.data || []).forEach(u => usersMap[u.id] = u);
-      // Enrich probation records with user info
-      const enriched = probs.map(p => ({
-        ...p,
-        employee: usersMap[p.employee_id] || null,
-        status: p.probation_status,
-        days_elapsed: p.working_days_elapsed,
-      }));
-      setProbations(enriched);
+      const res = await probationService.getAll();
+      setProbations(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
       setError(true);
       toast.error('Failed to load probation data');
@@ -65,40 +53,37 @@ export default function Probation() {
     }
   };
 
-  const handleCheckTriggers = async () => {
-    toast.success('Trigger scan complete');
-    loadData();
+  const handleScanTriggers = async () => {
+    try {
+      // In a real app, this would be a specific admin endpoint
+      toast.success('Milestone scan initiated');
+      loadData();
+    } catch (e) {
+      toast.error('Scan failed');
+    }
   };
 
-  const members = probations;
+  const filteredProbations = probations.filter(p => 
+    p.employee?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.calculated_status?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const getStatusColor = (status) => {
+    const s = status?.toLowerCase();
+    if (s?.includes('on track')) return COLORS.emerald;
+    if (s?.includes('overdue')) return COLORS.rose;
+    if (s?.includes('pending') || s?.includes('due')) return COLORS.amber;
+    if (s?.includes('completed')) return COLORS.accent;
+    return COLORS.muted;
+  };
 
   if (loading) return (
     <Layout>
-      <div style={{ height: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ height: "60vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
         <div style={{ width: 32, height: 32, borderRadius: "50%", border: `3px solid ${COLORS.border}`, borderTopColor: COLORS.accent, animation: "spin 1s linear infinite" }} />
+        <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.muted }}>Synchronizing tracker…</span>
       </div>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </Layout>
-  );
-
-  if (error) return (
-    <Layout>
-      <div style={{ height: "60vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24 }}>
-        <div style={{ width: 64, height: 64, borderRadius: 20, background: `${COLORS.rose}10`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <AlertTriangle size={32} color={COLORS.rose} />
-        </div>
-        <div style={{ textAlign: "center" }}>
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: COLORS.text }}>Failed to synchronize data</h2>
-          <p style={{ fontSize: 14, color: COLORS.muted, marginTop: 6 }}>The strategy engine experienced a connection timeout or server error.</p>
-        </div>
-        <button onClick={loadData} style={{
-          background: COLORS.accent, border: "none", padding: "12px 24px", borderRadius: 12,
-          color: "#fff", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 10,
-          cursor: "pointer", boxShadow: `0 8px 20px ${COLORS.accent}33`, transition: "all 0.2s",
-        }}>
-          <RefreshCw size={18} /> Retry Synchronization
-        </button>
-      </div>
     </Layout>
   );
 
@@ -106,183 +91,158 @@ export default function Probation() {
     <Layout>
       <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
         
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        {/* Header Section */}
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
           <div>
-            <h1 style={{ fontSize: 24, fontWeight: 800, color: COLORS.text, letterSpacing: "-0.03em" }}>
-               {currentUser?.role === 'employee' ? 'My Strategic Onboarding' : 'Probation Lifecycle'}
+            <h1 style={{ fontSize: 26, fontWeight: 900, color: COLORS.text, letterSpacing: "-0.04em" }}>
+              Probation Milestone Tracker
             </h1>
             <p style={{ fontSize: 14, color: COLORS.muted, marginTop: 4 }}>
-               {currentUser?.role === 'employee' ? 'Tracking your professional evolution and cultural alignment milestones' : 'Automated tracking for 30, 60, and 90-day performance milestones'}
+              Systematic oversight of employee onboarding and cultural integration loops
             </p>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 10 }}>
             {currentUser?.role === 'admin' && (
-              <button 
-                onClick={handleCheckTriggers}
-                style={{
-                  background: COLORS.accent, border: "none",
-                  padding: "8px 16px", borderRadius: 10, fontSize: 13, fontWeight: 700,
-                  color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
-                  boxShadow: `0 4px 12px ${COLORS.accent}33`,
-                }}
-              >
-                Scan Triggers <Zap size={14} />
+              <button onClick={handleScanTriggers} style={{
+                background: COLORS.bg, border: `1px solid ${COLORS.border}`,
+                padding: "10px 18px", borderRadius: 12, fontSize: 13, fontWeight: 700,
+                color: COLORS.text, cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+                transition: "all 0.2s"
+              }}>
+                <Zap size={16} color={COLORS.amber} /> Scan Milestones
               </button>
             )}
             <button style={{
-              background: COLORS.surface, border: `1px solid ${COLORS.border}`,
-              padding: "8px 16px", borderRadius: 10, fontSize: 13, fontWeight: 600,
-              color: COLORS.text, cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+              background: COLORS.accent, border: "none",
+              padding: "10px 18px", borderRadius: 12, fontSize: 13, fontWeight: 700,
+              color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
+              boxShadow: `0 8px 16px ${COLORS.accent}25`
             }}>
-              Download Schedule <Calendar size={14} />
+              <Calendar size={16} /> Schedule Export
             </button>
           </div>
         </div>
 
-        {/* Global Alert / Employee Welcome */}
-        {currentUser?.role === 'employee' ? (
-           <div style={{
-              background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.violet})`,
-              borderRadius: 24, padding: "32px", color: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center",
-              boxShadow: `0 20px 40px ${COLORS.accent}33`,
-           }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <Zap size={24} color="#fff" />
-                    <span style={{ fontSize: 20, fontWeight: 800 }}>Keep Pushing, {currentUser?.name}!</span>
-                 </div>
-                 <p style={{ fontSize: 15, opacity: 0.9, maxWidth: 500, lineHeight: 1.6 }}>You are currently <b>{members[0]?.probationDays - members[0]?.daysLeft} days</b> into your journey. Your next milestone is the 60-day alignment check.</p>
+        {/* Stats Summary Panel */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24 }}>
+          {[
+            { label: "Active Tracking", value: probations.length, icon: UserCheck, color: COLORS.accent },
+            { label: "Overdue Actions", value: probations.filter(p => p.calculated_status === 'Overdue').length, icon: AlertTriangle, color: COLORS.rose },
+            { label: "Due This Week", value: probations.filter(p => p.calculated_status === 'Pending Form').length, icon: Clock, color: COLORS.amber },
+            { label: "Completed Confirmations", value: probations.filter(p => p.calculated_status === 'Completed').length, icon: ShieldCheck, color: COLORS.emerald },
+          ].map((stat, i) => (
+            <div key={i} style={{
+              background: COLORS.card, border: `1.5px solid ${COLORS.border}`,
+              borderRadius: 20, padding: "20px", display: "flex", alignItems: "center", gap: 16,
+            }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: `${stat.color}10`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <stat.icon size={20} color={stat.color} />
               </div>
-              <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 32, fontWeight: 900 }}>{members[0]?.days_left || 0}</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.8, textTransform: "uppercase" }}>Days Remaining</div>
-              </div>
-           </div>
-        ) : (
-          <div style={{
-            background: `${COLORS.rose}08`, border: `1px solid ${COLORS.rose}20`,
-            borderRadius: 16, padding: "16px 20px", display: "flex", alignItems: "center", gap: 16,
-          }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: COLORS.rose, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <AlertTriangle size={18} color="#fff" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.rose }}>Automated Escalations Detected</div>
-              <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>
-                System has identified <b>{members.filter(m => m.triggers?.some(t => t.escalated_to_admin)).length}</b> members reaching Day 80 milestones or pending overdue actions.
-              </div>
-            </div>
-            <button 
-              onClick={handleCheckTriggers}
-              style={{ background: COLORS.rose, border: "none", padding: "6px 12px", borderRadius: 8, color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-              Run Guardrail Protocol
-            </button>
-          </div>
-        )}
-
-        {/* Probation Grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-          {members.map((member, i) => (
-            <div key={i} 
-              onClick={() => navigate(`/goals?user_id=${member.user?.id}`)}
-              style={{
-                background: COLORS.card, border: `1.5px solid ${COLORS.border}`,
-                borderRadius: 20, padding: 24, display: "flex", flexDirection: "column", gap: 20,
-                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)", boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-                cursor: "pointer",
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.borderColor = COLORS.accent;
-                e.currentTarget.style.transform = "translateY(-4px)";
-                e.currentTarget.style.boxShadow = `0 12px 24px -10px ${COLORS.accent}20`;
-              }} 
-              onMouseLeave={e => {
-                e.currentTarget.style.borderColor = COLORS.border;
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)";
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                 <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-                   <div style={{
-                     width: 44, height: 44, borderRadius: 12, background: COLORS.bg,
-                     display: "flex", alignItems: "center", justifyContent: "center",
-                     fontSize: 16, fontWeight: 800, color: COLORS.muted, border: `1px solid ${COLORS.border}`,
-                   }}>{member.user?.name?.charAt(0)}</div>
-                   <div>
-                     <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.text }}>{member.employee?.name || `Employee #${member.employee_id}`}</div>
-                     <div style={{ fontSize: 12, color: COLORS.muted }}>Joined: {member.date_of_joining} · {(member.status || '').toUpperCase()}</div>
-                   </div>
-                 </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  {member.triggers?.some(t => t.escalated_to_admin) && (
-                    <div style={{
-                      padding: "4px 8px", borderRadius: 6,
-                      background: COLORS.rose, color: "#fff",
-                      fontSize: 10, fontWeight: 800, letterSpacing: "0.05em"
-                    }}>ESCALATED</div>
-                  )}
-                  <div style={{
-                    padding: "4px 10px", borderRadius: 6,
-                    background: member.status === 'paused' ? `${COLORS.amber}12` : `${COLORS.emerald}12`,
-                    color: member.status === 'paused' ? COLORS.amber : COLORS.emerald,
-                    fontSize: 11, fontWeight: 700,
-                  }}>{member.status}</div>
-                </div>
-              </div>
-
-              {/* Milestones */}
-              <div style={{ display: "flex", gap: 8 }}>
-                {(member.triggers || []).map(trigger => {
-                  const isCompleted = trigger.status === 'completed' || trigger.status === 'waived';
-                  const isUpcoming = trigger.status === 'pending';
-                  return (
-                    <div key={trigger.day} style={{
-                      flex: 1, padding: "12px", borderRadius: 14,
-                      background: isUpcoming ? `${COLORS.accent}08` : COLORS.bg,
-                      border: isUpcoming ? `1px solid ${COLORS.accent}30` : `1px solid transparent`,
-                      display: "flex", flexDirection: "column", gap: 6,
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: isUpcoming ? COLORS.accent : COLORS.subtle }}>D-{trigger.day}</span>
-                        {isCompleted && <CheckCircle2 size={12} color={COLORS.emerald} />}
-                      </div>
-                      <div style={{ fontSize: 10, fontWeight: 600, color: isUpcoming ? COLORS.text : COLORS.subtle }}>
-                         {formatDate(trigger.scheduled_date)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 700 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted }}>STRATEGIC PROGRESS</div>
-                  <span style={{ color: COLORS.text }}>{member.days_elapsed || 0} / 90 Days</span>
-                </div>
-                <div style={{ width: "100%", height: 6, background: COLORS.bg, borderRadius: 10, overflow: "hidden" }}>
-                  <div style={{ width: `${Math.min(100, ((member.days_elapsed || 0) / 90) * 100)}%`, height: "100%", background: COLORS.accent, borderRadius: 10 }} />
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: COLORS.muted }}>GOAL COMPLETION</span>
-                  <span style={{ fontSize: 10, fontWeight: 800, color: COLORS.emerald }}>{Math.round(member.goal_completion || 0)}%</span>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8, borderTop: `1px solid ${COLORS.border}` }}>
-                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ width: 22, height: 22, borderRadius: 6, background: COLORS.violet, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff" }}>
-                       M
-                    </div>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.muted }}>Reviewer: HR Admin</span>
-                 </div>
-                 <button style={{ background: "none", border: "none", color: COLORS.accent, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-                   Action Review <ChevronRight size={14} />
-                 </button>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>{stat.label}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.text }}>{stat.value}</div>
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Main Tracker Table */}
+        <div style={{ background: COLORS.card, border: `1.5px solid ${COLORS.border}`, borderRadius: 24, padding: "8px", display: "flex", flexDirection: "column" }}>
+          
+          {/* Table Toolbar */}
+          <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${COLORS.border}` }}>
+            <div style={{ position: "relative", width: 320 }}>
+              <Search size={16} color={COLORS.subtle} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }} />
+              <input 
+                type="text" 
+                placeholder="Search by employee or status..." 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{
+                  width: "100%", padding: "10px 14px 10px 40px", borderRadius: 12,
+                  border: `1.5px solid ${COLORS.border}`, background: COLORS.bg,
+                  fontSize: 13, fontWeight: 500, outline: "none", transition: "all 0.2s"
+                }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button style={{ padding: "10px 16px", borderRadius: 10, border: `1.5px solid ${COLORS.border}`, background: "#fff", display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 700, color: COLORS.muted, cursor: "pointer" }}>
+                <Filter size={14} /> Filter Set
+              </button>
+            </div>
+          </div>
+
+          {/* Actual Table */}
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+              <thead>
+                <tr style={{ background: `${COLORS.bg}50` }}>
+                  {["Employee", "DOJ", "Day 30", "Day 60", "Day 80", "Lifecycle Status", "Action"].map((h, i) => (
+                    <th key={i} style={{
+                      textAlign: "left", padding: "16px 20px", fontSize: 10, fontWeight: 800, color: COLORS.subtle,
+                      textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: `1px solid ${COLORS.border}`
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredProbations.map((prob) => (
+                  <tr key={prob.id} style={{ transition: "all 0.15s" }} onMouseEnter={e => e.currentTarget.style.background = `${COLORS.accent}04`} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    <td style={{ padding: "16px 20px", borderBottom: `1px solid ${COLORS.border}` }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: COLORS.bg, border: `1.5px solid ${COLORS.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: COLORS.muted }}>
+                          {prob.employee?.name?.charAt(0)}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.text }}>{prob.employee?.name || `Employee #${prob.employee_id}`}</div>
+                          <div style={{ fontSize: 11, color: COLORS.muted }}>{prob.employee?.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding: "16px 20px", borderBottom: `1px solid ${COLORS.border}`, fontSize: 13, fontWeight: 600, color: COLORS.muted }}>
+                      {prob.date_of_joining}
+                    </td>
+                    {[30, 60, 80].map(day => {
+                      const trigger = prob.triggers?.find(t => t.trigger_day === day);
+                      const isDone = trigger?.status === 'submitted';
+                      const isPending = trigger?.status === 'triggered';
+                      return (
+                        <td key={day} style={{ padding: "16px 20px", borderBottom: `1px solid ${COLORS.border}` }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                            <div style={{ height: 6, width: 40, background: isDone ? COLORS.emerald : isPending ? COLORS.amber : COLORS.bg, borderRadius: 3 }} />
+                            <div style={{ fontSize: 10, fontWeight: 700, color: isDone ? COLORS.emerald : isPending ? COLORS.amber : COLORS.subtle }}>
+                              {isDone ? 'Submitted' : isPending ? 'Pending' : 'Upcoming'}
+                            </div>
+                          </div>
+                        </td>
+                      );
+                    })}
+                    <td style={{ padding: "16px 20px", borderBottom: `1px solid ${COLORS.border}` }}>
+                      <div style={{ display: "inline-flex", padding: "4px 10px", borderRadius: 8, background: `${getStatusColor(prob.calculated_status)}12`, color: getStatusColor(prob.calculated_status), fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>
+                        {prob.calculated_status || 'On Track'}
+                      </div>
+                    </td>
+                    <td style={{ padding: "16px 20px", borderBottom: `1px solid ${COLORS.border}` }}>
+                      <button 
+                        onClick={() => navigate(`/probation/${prob.employee_id}`)}
+                        style={{ border: "none", background: COLORS.bg, padding: "8px 12px", borderRadius: 8, color: COLORS.accent, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                      >
+                         Fill Form <ArrowUpRight size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {filteredProbations.length === 0 && (
+            <div style={{ padding: "64px 0", textAlign: "center", color: COLORS.subtle }}>
+               <UserCheck size={48} style={{ opacity: 0.2, marginBottom: 16 }} />
+               <div style={{ fontSize: 16, fontWeight: 700 }}>No candidates in probation cycle</div>
+               <div style={{ fontSize: 13 }}>All team members have completed their integration roadmap.</div>
+            </div>
+          )}
         </div>
 
       </div>

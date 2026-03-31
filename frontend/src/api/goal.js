@@ -8,17 +8,17 @@ export const goalService = {
   update: (id, data) => apiClient.patch(API_ENDPOINTS.GOALS.BY_ID(id), data),
   delete: (id) => apiClient.delete(API_ENDPOINTS.GOALS.ARCHIVE(id)),
   submit: (id) => apiClient.post(API_ENDPOINTS.GOALS.SUBMIT(id)),
-  approve: (id, action = 'approved', comment = '', weightage = null) => 
-    apiClient.post(API_ENDPOINTS.GOALS.APPROVE(id), { action, comment, weightage }),
+  approve: (id) => 
+    apiClient.post(API_ENDPOINTS.GOALS.APPROVE(id), { approved: true }),
   reject: (id, comment = '') => 
-    apiClient.post(API_ENDPOINTS.GOALS.APPROVE(id), { action: 'rejected', comment }),
+    apiClient.post(API_ENDPOINTS.GOALS.APPROVE(id), { approved: false, rejection_comment: comment }),
   updateProgress: (id, percentage) => 
-    apiClient.patch(`${API_ENDPOINTS.GOALS.PROGRESS(id)}?completion_pct=${percentage}`),
+    apiClient.post(API_ENDPOINTS.GOALS.PROGRESS(id), { completion_percentage: percentage }),
   
   // Subtasks
   addSubtask: (goalId, data) => apiClient.post(API_ENDPOINTS.GOALS.SUBTASKS(goalId), data),
-  updateSubtask: (goalId, subtaskId, data) => apiClient.patch(`/goals/subtasks/${subtaskId}`, data),
-  deleteSubtask: (goalId, subtaskId) => apiClient.delete(`/goals/${goalId}/subtasks/${subtaskId}`),
+  updateSubtask: (goalId, subtaskId, data) => apiClient.patch(`goals/subtasks/${subtaskId}`, data),
+  deleteSubtask: (goalId, subtaskId) => apiClient.delete(`goals/${goalId}/subtasks/${subtaskId}`),
   
   // Feedback
   submitFeedback: (id, data) => {

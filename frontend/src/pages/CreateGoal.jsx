@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { 
   Target, Calendar, Award, UserPlus, 
-  ChevronRight, ArrowLeft, Zap, Info, ShieldCheck
+  ChevronRight, ArrowLeft, Zap, Info, ShieldCheck,
+  Plus, Trash2
 } from 'lucide-react';
 import Layout from '../components/Layout';
 import { goalService, userService } from '../api';
@@ -31,23 +32,24 @@ export default function CreateGoal() {
   const { register, handleSubmit, watch, formState: { errors } } = useForm();
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState([]);
+  const [subtasks, setSubtasks] = useState([]);
   const [remainingWeightage, setRemainingWeightage] = useState(100);
   const navigate = useNavigate();
   const currentUser = useAuthStore((state) => state.user);
 
   const watchTag = watch('tag');
   const watchPriority = watch('priority');
-  const watchOwner = watch('owner_id');
+  const watchAssignee = watch('assignee_id');
 
   useEffect(() => {
     loadUsers();
   }, []);
 
   useEffect(() => {
-    if (watchTag && (currentUser.role === 'employee' || watchOwner)) {
+    if (watchTag && (currentUser.role === 'employee' || watchAssignee)) {
       checkWeightage();
     }
-  }, [watchTag, watchOwner, watchPriority]);
+  }, [watchTag, watchAssignee, watchPriority]);
 
   const loadUsers = async () => {
     if (currentUser.role === 'employee') {
@@ -70,8 +72,8 @@ export default function CreateGoal() {
 
   const checkWeightage = async () => {
     try {
-      const ownerId = currentUser.role === 'employee' ? currentUser.id : watchOwner;
-      const response = await goalService.checkWeightage(ownerId, watchTag);
+      const assigneeId = currentUser.role === 'employee' ? currentUser.id : watchAssignee;
+      const response = await goalService.checkWeightage(assigneeId, watchTag);
       setRemainingWeightage(response.data.remaining_weightage);
     } catch (error) {
       console.error('Failed to check weightage');
@@ -80,7 +82,7 @@ export default function CreateGoal() {
 
   const onSubmit = async (data) => {
     if (currentUser.role === 'employee') {
-      data.owner_id = currentUser.id;
+      data.assignee_id = currentUser.id;
     }
     const goalWeightage = PRIORITY_WEIGHTAGE[data.priority];
     if (goalWeightage > remainingWeightage) {
@@ -90,7 +92,11 @@ export default function CreateGoal() {
 
     setLoading(true);
     try {
-      await goalService.create(data);
+      const payload = {
+        ...data,
+        subtasks: subtasks.filter(st => st.title.trim() !== '')
+      };
+      await goalService.create(payload);
       toast.success('Goal created successfully');
       navigate('/goals');
     } catch (error) {
@@ -173,7 +179,7 @@ export default function CreateGoal() {
             </div>
 
             {/* Guardrail Status */}
-            {watchTag && (currentUser.role !== 'employee' ? watchOwner : true) && (
+            {watchTag && (currentUser.role !== 'employee' ? watchAssignee : true) && (
               <div style={{
                 background: remainingWeightage >= selectedWeightage ? `${COLORS.emerald}08` : `${COLORS.rose}08`,
                 border: `1.5px solid ${remainingWeightage >= selectedWeightage ? COLORS.emerald : COLORS.rose}25`,
@@ -204,12 +210,53 @@ export default function CreateGoal() {
             {currentUser.role !== 'employee' && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase" }}>Assign To</label>
-                <select {...register('owner_id', { required: true })} style={{ padding: "12px 16px", border: `1.5px solid ${COLORS.border}`, borderRadius: 12, fontSize: 14, outline: "none", background: "#fff" }}>
+                <select {...register('assignee_id', { required: true })} style={{ padding: "12px 16px", border: `1.5px solid ${COLORS.border}`, borderRadius: 12, fontSize: 14, outline: "none", background: "#fff" }}>
                   <option value="">Select User</option>
                    {users.map((user) => <option key={user.id} value={user.id}>{user.name} ({user.role})</option>)}
                 </select>
               </div>
             )}
+
+            {/* Subtasks Section */}
+            <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: 28, display: "flex", flexDirection: "column", gap: 16 }}>
+               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>Tactical Milestones</label>
+                    <p style={{ fontSize: 12, color: COLORS.subtle, marginTop: 2 }}>Break down this objective into actionable steps</p>
+                  </div>
+                  <button type="button" onClick={() => setSubtasks([...subtasks, { title: '' }])}
+                    style={{ background: COLORS.bg, border: `1px solid ${COLORS.border}`, padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+                    <Plus size={14} /> Add Milestone
+                  </button>
+               </div>
+               
+               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {subtasks.map((st, idx) => (
+                    <div key={idx} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                       <input 
+                         type="text" 
+                         placeholder={`Milestone #${idx + 1} title...`}
+                         value={st.title}
+                         onChange={(e) => {
+                           const newSts = [...subtasks];
+                           newSts[idx].title = e.target.value;
+                           setSubtasks(newSts);
+                         }}
+                         style={{ flex: 1, padding: "10px 14px", border: `1.5px solid ${COLORS.border}`, borderRadius: 10, fontSize: 13, outline: "none", background: COLORS.bg }} 
+                       />
+                       <button type="button" onClick={() => setSubtasks(subtasks.filter((_, i) => i !== idx))}
+                         style={{ background: "none", border: "none", color: COLORS.rose, cursor: "pointer", padding: 4 }}>
+                         <Trash2 size={16} />
+                       </button>
+                    </div>
+                  ))}
+                  {subtasks.length === 0 && (
+                    <div style={{ textAlign: "center", padding: "20px", border: `1px dashed ${COLORS.border}`, borderRadius: 12, color: COLORS.subtle, fontSize: 12 }}>
+                      No milestones added yet. You can also add them later.
+                    </div>
+                  )}
+               </div>
+            </div>
 
             {/* Footer Actions */}
             <div style={{ display: "flex", gap: 16, paddingTop: 12, borderTop: `1px solid ${COLORS.border}` }}>

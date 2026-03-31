@@ -17,6 +17,7 @@ import Probation from './pages/Probation';
 import Reports from './pages/Reports';
 import FeedbackFlags from './pages/FeedbackFlags';
 import Notifications from './pages/Notifications';
+import ProbationDetail from './pages/ProbationDetail';
 
 function App() {
   const token = useAuthStore((state) => state.token);
@@ -29,22 +30,23 @@ function App() {
         <Route path="/login" element={token ? <Navigate to="/" replace /> : <Login />} />
         
         {/* Protected Application Routes */}
-        <Route path="/" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
-        <Route path="/goals" element={<ProtectedRoute><Layout><Goals /></Layout></ProtectedRoute>} />
-        <Route path="/goals/new" element={<ProtectedRoute><Layout><CreateGoal /></Layout></ProtectedRoute>} />
-        <Route path="/goals/:id" element={<ProtectedRoute><Layout><GoalDetail /></Layout></ProtectedRoute>} />
+        <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/goals" element={<ProtectedRoute><Goals /></ProtectedRoute>} />
+        <Route path="/goals/new" element={<ProtectedRoute><CreateGoal /></ProtectedRoute>} />
+        <Route path="/goals/:id" element={<ProtectedRoute><GoalDetail /></ProtectedRoute>} />
         
-        <Route path="/users" element={<ProtectedRoute requireAdmin><Layout><Users /></Layout></ProtectedRoute>} />
-        <Route path="/teams" element={<ProtectedRoute><Layout><Teams /></Layout></ProtectedRoute>} />
+        <Route path="/users" element={<ProtectedRoute requireAdmin><Users /></ProtectedRoute>} />
+        <Route path="/teams" element={<ProtectedRoute><Teams /></ProtectedRoute>} />
         
-        <Route path="/cycles" element={<ProtectedRoute><Layout><Cycles /></Layout></ProtectedRoute>} />
-        <Route path="/probation" element={<ProtectedRoute><Layout><Probation /></Layout></ProtectedRoute>} />
-        <Route path="/reports" element={<ProtectedRoute><Layout><Reports /></Layout></ProtectedRoute>} />
-        <Route path="/feedback-flags" element={<ProtectedRoute requireAdmin><Layout><FeedbackFlags /></Layout></ProtectedRoute>} />
+        <Route path="/cycles" element={<ProtectedRoute><Cycles /></ProtectedRoute>} />
+        <Route path="/probation" element={<ProtectedRoute><Probation /></ProtectedRoute>} />
+        <Route path="/probation/:id" element={<ProtectedRoute><ProbationDetail /></ProtectedRoute>} />
+        <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+        <Route path="/feedback-flags" element={<ProtectedRoute requireAdmin><FeedbackFlags /></ProtectedRoute>} />
         
-        <Route path="/performance" element={<ProtectedRoute><Layout><PerformanceReview /></Layout></ProtectedRoute>} />
-        <Route path="/performance/form/:id" element={<ProtectedRoute><Layout><FeedbackForm /></Layout></ProtectedRoute>} />
-        <Route path="/notifications" element={<ProtectedRoute><Layout><Notifications /></Layout></ProtectedRoute>} />
+        <Route path="/performance" element={<ProtectedRoute><PerformanceReview /></ProtectedRoute>} />
+        <Route path="/performance/form/:id" element={<ProtectedRoute><FeedbackForm /></ProtectedRoute>} />
+        <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
         
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
