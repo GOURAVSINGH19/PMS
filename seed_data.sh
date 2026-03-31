@@ -221,7 +221,7 @@ echo "✅ Probation records created"
 # ── Notifications ─────────────────────────────────────────────────────────────
 echo "--- Creating Notifications ---"
 docker exec pms-postgres-1 psql -U gms_user -d gms_db -c "
-INSERT INTO notifications (user_id, title, message, type, is_read, created_at) VALUES
+INSERT INTO notifications (recipient_id, title, message, notification_type, is_read, created_at) VALUES
 (1, 'Review Cycle Started', 'Q1 2026 Performance Review cycle has been triggered for all employees', 'REVIEW_CYCLE', false, NOW() - INTERVAL '2 days'),
 (1, 'Goal Completed', 'Gourav Singh completed goal: Write Unit Tests for Auth Module with score 4.4/5', 'GOAL_COMPLETED', false, NOW() - INTERVAL '1 day'),
 (1, 'Probation Alert', 'Rahul Mehta probation review is due in 30 days', 'PROBATION', false, NOW() - INTERVAL '3 hours'),

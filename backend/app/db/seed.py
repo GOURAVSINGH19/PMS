@@ -25,20 +25,20 @@ def seed(db: Session) -> None:
     today = date.today()
 
     # ── Users ────────────────────────────────────────────────
-    admin = User(name="Alex HR", email="admin@pms.io",
+    admin = User(name="sandeep", email="admin@pms.io",
                  hashed_password=get_password_hash("admin123"),
                  role="admin", department="HR", is_active=True, is_first_login=True,
                  review_track="bi_annual")
     db.add(admin)
 
-    manager = User(name="Morgan Lead", email="manager@pms.io",
+    manager = User(name="aman", email="manager@pms.io",
                    hashed_password=get_password_hash("manager123"),
                    role="manager", department="Engineering", doj=today - timedelta(days=365),
                    is_active=True, is_first_login=False, review_track="bi_annual")
     db.add(manager)
     db.flush()
 
-    emp1 = User(name="Jamie Dev", email="employee@pms.io",
+    emp1 = User(name="harshit", email="employee@pms.io",
                 hashed_password=get_password_hash("emp123"),
                 role="employee", department="Engineering",
                 doj=today - timedelta(days=45),
